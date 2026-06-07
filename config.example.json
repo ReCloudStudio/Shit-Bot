@@ -1,0 +1,60 @@
+{
+  "users": [
+    {
+      "username": "elonmusk",
+      "displayName": "Elon Musk",
+      "filters": {
+        "keywords": {
+          "include": ["tesla", "spacex", "twitter"],
+          "exclude": ["ad", "sponsored"]
+        },
+        "media": {
+          "requireMedia": false
+        },
+        "excludeRetweets": true,
+        "excludeReplies": false
+      }
+    },
+    {
+      "username": "RhenCloud_",
+      "displayName": "RhenCloud",
+      "filters": {
+        "keywords": {
+          "include": [],
+          "exclude": []
+        },
+        "media": {
+          "requireMedia": false
+        },
+        "excludeRetweets": false,
+        "excludeReplies": false
+      }
+    }
+  ],
+  "discord": {
+    "enabled": false,
+    "token": "YOUR_DISCORD_BOT_TOKEN",
+    "channelId": "YOUR_CHANNEL_ID",
+    "adminChannelId": "YOUR_ADMIN_CHANNEL_ID",
+    "embedColor": "#1DA1F2"
+  },
+  "telegram": {
+    "enabled": true,
+    "token": "YOUR_TELEGRAM_BOT_TOKEN",
+    "chatId": "-1001234567890",
+    "adminChatIds": ["111111111", "222222222"],
+    "parseMode": "HTML",
+    "apiRoot": ""
+  },
+  "nitterInstances": [
+    "https://xcancel.com",
+    "https://nitter.poast.org",
+    "https://nitter.privacyredirect.com",
+    "https://nitter.kareem.one"
+  ],
+  "enableApproval": true,
+  "sendAsImage": true,
+  "pollIntervalMinutes": 5,
+  "maxPostsPerFetch": 20,
+  "maxTweetAgeMinutes": 60
+}

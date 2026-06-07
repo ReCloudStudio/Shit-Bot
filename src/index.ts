@@ -1,0 +1,203 @@
+import cron from 'node-cron';
+import { loadConfig, getConfig } from './config';
+import { fetchAllTweets } from './rss/fetcher';
+import { filterTweets, getPassedTweets } from './filters';
+import { initDiscord, sendBatchToDiscord, shutdownDiscord, getDiscordClient } from './bots/discord';
+import { initTelegram, sendBatchToTelegram, shutdownTelegram, getTelegramBot } from './bots/telegram';
+import { initDatabase, closeDatabase, markMultipleAsSent, cleanupOldRecords } from './storage';
+import { sendForApproval, handleTelegramApproval, handleDiscordApproval, setTelegramBot, setDiscordClient } from './approval';
+import { initRenderer, shutdownRenderer } from './renderer';
+import { ProcessedTweet, Tweet, UserConfig } from './types';
+
+let isRunning = false;
+let cronJob: cron.ScheduledTask | null = null;
+
+async function processAndSendTweets(username: string, tweets: Tweet[]): Promise<void> {
+  const config = getConfig();
+  const userConfig = config.users.find((u) => u.username === username);
+
+  if (!userConfig) {
+    console.warn(`No config found for user @${username}`);
+    return;
+  }
+
+  const processed = filterTweets(tweets, userConfig);
+  const passed = getPassedTweets(processed);
+
+  if (passed.length === 0) {
+    return;
+  }
+
+  console.log(`Processing ${passed.length} tweets from @${username}`);
+
+  if (config.enableApproval) {
+    for (const tweet of passed) {
+      await sendForApproval(tweet);
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+  } else {
+    let sentTweets: ProcessedTweet[] = [];
+
+    if (config.discord.enabled) {
+      const discordSent = await sendBatchToDiscord(passed);
+      sentTweets = passed.slice(0, discordSent);
+    }
+
+    if (config.telegram.enabled) {
+      const telegramSent = await sendBatchToTelegram(passed);
+      if (sentTweets.length === 0) {
+        sentTweets = passed.slice(0, telegramSent);
+      }
+    }
+
+    markMultipleAsSent(sentTweets.map(t => ({
+      id: t.id,
+      author: t.author,
+      content: t.content,
+      url: t.url,
+    })));
+  }
+}
+
+async function pollAndSend(): Promise<void> {
+  if (isRunning) {
+    console.log('Previous poll still running, skipping...');
+    return;
+  }
+
+  isRunning = true;
+  const startTime = Date.now();
+
+  try {
+    console.log(`\n[${new Date().toISOString()}] Starting poll...`);
+
+    const allTweets = await fetchAllTweets();
+
+    let totalProcessed = 0;
+    let totalPassed = 0;
+
+    for (const [username, tweets] of allTweets) {
+      await processAndSendTweets(username, tweets);
+      totalProcessed += tweets.length;
+    }
+
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+    console.log(`Poll completed in ${elapsed}s`);
+  } catch (error) {
+    console.error('Error during poll:', error);
+  } finally {
+    isRunning = false;
+  }
+}
+
+async function start(): Promise<void> {
+  console.log('=== X/Twitter Monitor Bot ===\n');
+
+  try {
+    loadConfig();
+    console.log('Configuration loaded');
+  } catch (error) {
+    console.error('Failed to load configuration:', error);
+    process.exit(1);
+  }
+
+  initDatabase();
+
+  const config = getConfig();
+
+  if (config.sendAsImage) {
+    console.log('Initializing image renderer...');
+    const rendererReady = await initRenderer();
+    if (!rendererReady) {
+      console.warn('Image renderer failed to initialize, will send as text');
+    }
+  }
+
+  let discordReady = false;
+  let telegramReady = false;
+
+  if (config.discord.enabled) {
+    discordReady = await initDiscord();
+    if (!discordReady) {
+      console.warn('Discord initialization failed');
+    }
+  }
+
+  if (config.telegram.enabled) {
+    telegramReady = await initTelegram();
+    if (!telegramReady) {
+      console.warn('Telegram initialization failed');
+    } else {
+      const telegramBot = getTelegramBot();
+      if (telegramBot) {
+        setTelegramBot(telegramBot);
+        
+        telegramBot.action(/^approve_/, handleTelegramApproval);
+        telegramBot.action(/^reject_/, handleTelegramApproval);
+        
+        telegramBot.launch();
+        console.log('Telegram bot launched with approval handlers');
+      }
+    }
+  }
+
+  if (config.discord.enabled && discordReady) {
+    const discordClient = getDiscordClient();
+    if (discordClient) {
+      setDiscordClient(discordClient);
+
+      discordClient.on('interactionCreate', async (interaction) => {
+        if (!interaction.isButton()) return;
+        const customId = interaction.customId;
+        if (customId.startsWith('approve_') || customId.startsWith('reject_')) {
+          await handleDiscordApproval(interaction);
+        }
+      });
+      console.log('Discord approval handlers registered');
+    }
+  }
+
+  if (config.discord.enabled && !discordReady && config.telegram.enabled && !telegramReady) {
+    console.error('Both Discord and Telegram failed to initialize. Exiting.');
+    process.exit(1);
+  }
+
+  console.log(`\nMonitoring ${config.users.length} users:`);
+  for (const user of config.users) {
+    console.log(`  - @${user.username}`);
+  }
+
+  console.log(`\nPoll interval: ${config.pollIntervalMinutes} minute(s)`);
+  console.log('Starting initial poll...\n');
+
+  await pollAndSend();
+
+  const cronExpression = `*/${config.pollIntervalMinutes} * * * *`;
+  cronJob = cron.schedule(cronExpression, pollAndSend);
+  console.log(`Cron job scheduled: ${cronExpression}`);
+}
+
+async function shutdown(): Promise<void> {
+  console.log('\nShutting down...');
+
+  if (cronJob) {
+    cronJob.stop();
+    cronJob = null;
+  }
+
+  await shutdownDiscord();
+  await shutdownTelegram();
+  await shutdownRenderer();
+  closeDatabase();
+
+  console.log('Shutdown complete');
+  process.exit(0);
+}
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+
+start().catch((error) => {
+  console.error('Fatal error:', error);
+  process.exit(1);
+});
