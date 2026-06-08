@@ -7,9 +7,11 @@ dist/
 # Environment variables
 .env
 
-# Conifg
+# Config
 config.json
 config.yaml
+config.yml
+config.toml
 
 # Database
 data/
@@ -30,3 +32,9 @@ Thumbs.db
 
 # Puppeteer
 .puppeteer/
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example

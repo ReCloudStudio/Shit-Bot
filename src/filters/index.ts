@@ -91,7 +91,7 @@ export function formatTweetHTML(tweet: ProcessedTweet): string {
 
   lines.push(`<b>🐦 @${escapeHTML(tweet.author)}</b> (${escapeHTML(tweet.authorName)})`);
   lines.push('');
-  lines.push(escapeHTML(tweet.content));
+  lines.push(formatContentHTML(tweet.content));
   lines.push('');
   lines.push(`<a href="${tweet.url}">🔗 View on X</a>`);
   lines.push(`📅 ${tweet.publishedAt.toLocaleString()}`);
@@ -103,7 +103,39 @@ export function formatTweetHTML(tweet: ProcessedTweet): string {
   return lines.join('\n');
 }
 
-function escapeHTML(text: string): string {
+function formatContentHTML(content: string): string {
+  const placeholderMap: string[] = [];
+
+  const withPlaceholders = content.replace(
+    /https?:\/\/t\.co\/\w+/g,
+    (url) => {
+      const idx = placeholderMap.length;
+      placeholderMap.push(`<a href="${url}">🔗 Link</a>`);
+      return `__TCO_PH_${idx}__`;
+    }
+  );
+
+  const escaped = withPlaceholders
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  return escaped.replace(/__TCO_PH_(\d+)__/g, (_, idx) => placeholderMap[parseInt(idx)]);
+}
+
+function formatContentDiscord(content: string): string {
+  return content.replace(
+    /https?:\/\/t\.co\/\w+/g,
+    (url) => `[🔗 Link](${url})`
+  );
+}
+
+export function formatContentForPlatform(content: string, platform: 'html' | 'discord'): string {
+  return platform === 'html' ? formatContentHTML(content) : formatContentDiscord(content);
+}
+
+export function escapeHTML(text: string): string {
   return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

@@ -4,9 +4,10 @@ import { fetchAllTweets } from './rss/fetcher';
 import { filterTweets, getPassedTweets } from './filters';
 import { initDiscord, sendBatchToDiscord, shutdownDiscord, getDiscordClient } from './bots/discord';
 import { initTelegram, sendBatchToTelegram, shutdownTelegram, getTelegramBot } from './bots/telegram';
-import { initDatabase, closeDatabase, markMultipleAsSent, cleanupOldRecords } from './storage';
+import { initDatabase, closeDatabase, markMultipleAsSent, cleanupOldRecords, cleanupExpiredImages } from './storage';
 import { sendForApproval, handleTelegramApproval, handleDiscordApproval, setTelegramBot, setDiscordClient } from './approval';
 import { initRenderer, shutdownRenderer } from './renderer';
+import { initTwitterClient, loginWithCredentials } from './twitter';
 import { ProcessedTweet, Tweet, UserConfig } from './types';
 
 let isRunning = false;
@@ -71,6 +72,8 @@ async function pollAndSend(): Promise<void> {
   try {
     console.log(`\n[${new Date().toISOString()}] Starting poll...`);
 
+    cleanupExpiredImages(getConfig().imageCacheTtlMinutes);
+
     const allTweets = await fetchAllTweets();
 
     let totalProcessed = 0;
@@ -113,6 +116,26 @@ async function start(): Promise<void> {
     }
   }
 
+  console.log('Initializing Twitter client...');
+  let twitterReady = await initTwitterClient();
+
+  if (!twitterReady && config.twitter.username && config.twitter.password) {
+    console.log('Cookies not valid, attempting login with credentials...');
+    try {
+      const result = await loginWithCredentials();
+      config.twitter.authToken = result.authToken;
+      config.twitter.ct0 = result.ct0;
+      twitterReady = await initTwitterClient();
+    } catch (error) {
+      console.error('Login failed:', error);
+    }
+  }
+
+  if (!twitterReady) {
+    console.error('Twitter client failed to initialize. Exiting.');
+    process.exit(1);
+  }
+
   let discordReady = false;
   let telegramReady = false;
 
@@ -134,6 +157,7 @@ async function start(): Promise<void> {
         
         telegramBot.action(/^approve_/, handleTelegramApproval);
         telegramBot.action(/^reject_/, handleTelegramApproval);
+        telegramBot.action(/^post_/, handleTelegramApproval);
         
         telegramBot.launch();
         console.log('Telegram bot launched with approval handlers');
@@ -149,7 +173,7 @@ async function start(): Promise<void> {
       discordClient.on('interactionCreate', async (interaction) => {
         if (!interaction.isButton()) return;
         const customId = interaction.customId;
-        if (customId.startsWith('approve_') || customId.startsWith('reject_')) {
+        if (customId.startsWith('approve_') || customId.startsWith('reject_') || customId.startsWith('post_')) {
           await handleDiscordApproval(interaction);
         }
       });

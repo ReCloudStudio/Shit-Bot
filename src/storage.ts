@@ -31,6 +31,14 @@ export function initDatabase(): void {
   `);
 
   db.exec(`
+    CREATE TABLE IF NOT EXISTS image_cache (
+      tweet_id TEXT PRIMARY KEY,
+      image_data BLOB NOT NULL,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+    )
+  `);
+
+  db.exec(`
     CREATE INDEX IF NOT EXISTS idx_sent_tweets_author ON sent_tweets(author)
   `);
 
@@ -127,6 +135,41 @@ export function getRecentTweets(limit: number = 10): Array<{
 
   const stmt = database.prepare('SELECT * FROM sent_tweets ORDER BY sent_at DESC LIMIT ?');
   return stmt.all(limit) as any[];
+}
+
+export function cacheImage(tweetId: string, imageBuffer: Buffer): void {
+  const database = getDatabase();
+
+  const stmt = database.prepare(`
+    INSERT OR REPLACE INTO image_cache (tweet_id, image_data, created_at)
+    VALUES (?, ?, ?)
+  `);
+
+  stmt.run(tweetId, imageBuffer, Date.now());
+}
+
+export function getCachedImage(tweetId: string): Buffer | null {
+  const database = getDatabase();
+
+  const stmt = database.prepare('SELECT image_data FROM image_cache WHERE tweet_id = ?');
+  const row = stmt.get(tweetId) as { image_data: Buffer } | undefined;
+
+  return row ? row.image_data : null;
+}
+
+export function cleanupExpiredImages(maxAgeMinutes: number = 60): number {
+  const database = getDatabase();
+
+  const cutoff = Date.now() - (maxAgeMinutes * 60 * 1000);
+
+  const stmt = database.prepare('DELETE FROM image_cache WHERE created_at < ?');
+  const result = stmt.run(cutoff);
+
+  if (result.changes > 0) {
+    console.log(`Cleaned up ${result.changes} expired cached images`);
+  }
+
+  return result.changes;
 }
 
 export function closeDatabase(): void {

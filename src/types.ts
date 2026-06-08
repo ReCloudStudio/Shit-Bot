@@ -39,7 +39,13 @@ export interface DiscordConfig {
   token: string;
   channelId: string;
   adminChannelId?: string;
+  r14ChannelId?: string;
+  approveRoleId?: string;
   embedColor?: string;
+}
+
+export interface TelegramTarget {
+  chatId: string;
 }
 
 export interface TelegramConfig {
@@ -47,17 +53,31 @@ export interface TelegramConfig {
   token: string;
   chatId: string;
   adminChatIds?: string[];
+  targets?: Record<string, TelegramTarget>;
   parseMode?: 'HTML' | 'Markdown';
   apiRoot?: string;
+}
+
+export interface TwitterConfig {
+  authToken: string;
+  ct0: string;
+  username?: string;
+  password?: string;
+  email?: string;
+  totpSecret?: string;
 }
 
 export interface AppConfig {
   users: UserConfig[];
   discord: DiscordConfig;
   telegram: TelegramConfig;
-  nitterInstances: string[];
+  twitter: TwitterConfig;
   enableApproval: boolean;
   sendAsImage: boolean;
+  xToImageApiUrl?: string;
+  xToImageApiToken?: string;
+  xToImageApiTheme?: 'light' | 'dim' | 'dark';
+  imageCacheTtlMinutes: number;
   pollIntervalMinutes: number;
   maxPostsPerFetch: number;
   maxTweetAgeMinutes: number;

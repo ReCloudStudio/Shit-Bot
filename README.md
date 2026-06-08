@@ -4,8 +4,8 @@
 
 ## 功能特性
 
-- 通过 Nitter RSS 获取推文，无需 X API
-- 多 Nitter 实例自动轮询
+- 通过 X/Twitter GraphQL API 直接获取推文
+- 支持 Cookie 认证 或 用户名/密码/TOTP 登录
 - 支持关键词过滤（包含/排除）
 - 支持媒体过滤（图片/视频）
 - 支持排除转推/回复
@@ -106,15 +106,53 @@ cp config.example.json config.json
 | `parseMode`    | string   | 消息格式（`HTML` 或 `Markdown`）   |
 | `apiRoot`      | string   | Telegram API 代理地址（留空=直连） |
 
+### twitter - X/Twitter 认证配置
+
+提供以下两种方式之一进行认证：
+
+**方式一：Cookie 认证（推荐）**
+
+从浏览器中提取 `auth_token` 和 `ct0` 两个 Cookie：
+
+```json
+{
+  "twitter": {
+    "authToken": "你的 auth_token",
+    "ct0": "你的 ct0"
+  }
+}
+```
+
+**方式二：用户名/密码登录**
+
+提供 X 账号的用户名和密码，程序启动时会自动登录获取 Cookie：
+
+```json
+{
+  "twitter": {
+    "username": "你的用户名",
+    "password": "你的密码",
+    "email": "你的邮箱",
+    "totpSecret": "你的 TOTP Secret"
+  }
+}
+```
+
+| 字段         | 类型   | 说明                                                      |
+| ------------ | ------ | --------------------------------------------------------- |
+| `authToken`  | string | Cookie `auth_token`（方式一必填）                         |
+| `ct0`        | string | Cookie `ct0`（方式一必填）                                |
+| `username`   | string | X/Twitter 用户名（方式二必填）                            |
+| `password`   | string | X/Twitter 密码（方式二必填）                              |
+| `email`      | string | 注册邮箱（登录遇到验证时使用）                            |
+| `totpSecret` | string | TOTP 二次验证密钥（Base32 格式，开启 2FA 时使用）         |
+
+> **注意**：也可以通过环境变量配置，详见下方「环境变量」章节。
+
 ### 全局配置
 
 ```json
 {
-  "nitterInstances": [
-    "https://xcancel.com",
-    "https://nitter.poast.org",
-    "https://nitter.privacyredirect.com"
-  ],
   "enableApproval": true,
   "sendAsImage": true,
   "pollIntervalMinutes": 5,
@@ -123,16 +161,32 @@ cp config.example.json config.json
 }
 ```
 
-| 字段                  | 类型     | 默认值 | 说明                                |
-| --------------------- | -------- | ------ | ----------------------------------- |
-| `nitterInstances`     | string[] | -      | Nitter 实例列表（自动轮询）         |
-| `enableApproval`      | boolean  | false  | 是否启用审批（需配置 adminChatIds） |
-| `sendAsImage`         | boolean  | false  | 是否渲染为图片发送                  |
-| `pollIntervalMinutes` | number   | 5      | 轮询间隔（分钟）                    |
-| `maxPostsPerFetch`    | number   | 20     | 每次最多获取推文数                  |
-| `maxTweetAgeMinutes`  | number   | 60     | 推文最大年龄（超过则跳过）          |
+| 字段                  | 类型    | 默认值 | 说明                                |
+| --------------------- | ------- | ------ | ----------------------------------- |
+| `enableApproval`      | boolean | false  | 是否启用审批（需配置 adminChatIds） |
+| `sendAsImage`         | boolean | false  | 是否渲染为图片发送                  |
+| `pollIntervalMinutes` | number  | 5      | 轮询间隔（分钟）                    |
+| `maxPostsPerFetch`    | number  | 20     | 每次最多获取推文数                  |
+| `maxTweetAgeMinutes`  | number  | 60     | 推文最大年龄（超过则跳过）          |
 
 ## 获取 Token
+
+### X/Twitter Cookie
+
+**获取 `auth_token` 和 `ct0`：**
+
+1. 在浏览器中登录 https://x.com
+2. 打开开发者工具（F12）→ Application → Cookies → `https://x.com`
+3. 找到并复制 `auth_token` 和 `ct0` 的值
+4. 填入 `config.json` 的 `twitter` 部分
+
+> **提示**：Cookie 有效期较长，但更换密码或主动登出会失效。失效后需重新获取。
+
+**使用用户名/密码登录（可选）：**
+
+如果不想手动提取 Cookie，可以在 `config.json` 中填入 `username` 和 `password`（以及可选的 `email`、`totpSecret`），程序启动时会自动登录并打印获取到的 Cookie。
+
+也可以使用 `totpSecret` 字段支持 2FA 二次验证（Base32 格式）。
 
 ### Discord Bot Token
 
@@ -164,18 +218,6 @@ npm run dev
 npm run build
 npm start
 ```
-
-## Nitter 实例
-
-推荐实例（按可靠性排序）：
-
-- `https://xcancel.com` - 需要申请白名单
-- `https://nitter.poast.org`
-- `https://nitter.privacyredirect.com`
-- `https://nitter.kareem.one`
-- `https://nitter.catsarch.com`
-
-> **注意**：部分实例可能需要白名单或存在访问限制，建议配置多个实例。
 
 ## 审批功能
 
@@ -223,9 +265,19 @@ sqlite3 data/bot.db "SELECT * FROM sent_tweets ORDER BY sent_at DESC LIMIT 10"
 ```env
 DISCORD_TOKEN=your_discord_bot_token
 TELEGRAM_TOKEN=your_telegram_bot_token
+
+# Twitter/X Cookie 认证
+TWITTER_AUTH_TOKEN=your_auth_token
+TWITTER_CT0=your_ct0
+
+# Twitter/X 用户名/密码登录（可选）
+# TWITTER_USERNAME=your_username
+# TWITTER_PASSWORD=your_password
+# TWITTER_EMAIL=your_email@example.com
+# TWITTER_TOTP_SECRET=your_totp_base32_secret
 ```
 
-环境变量会覆盖 `config.json` 中的 Token 配置。
+环境变量会覆盖 `config.json` 中的对应配置。
 
 ## License
 

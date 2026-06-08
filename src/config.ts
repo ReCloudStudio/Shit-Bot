@@ -1,39 +1,87 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
+import { parse as parseYaml } from 'yaml';
+import { parse as parseToml } from 'smol-toml';
 import { AppConfig } from './types';
 
 dotenv.config();
 
-const CONFIG_PATH = path.join(__dirname, '..', 'config.json');
+const BASE_DIR = path.join(__dirname, '..');
+const CONFIG_CANDIDATES = [
+  'config.yaml',
+  'config.yml',
+  'config.toml',
+  'config.json',
+];
 
 let config: AppConfig | null = null;
+let loadedConfigPath: string | null = null;
 
-export function loadConfig(): AppConfig {
+export function findConfigFile(): string {
+  for (const candidate of CONFIG_CANDIDATES) {
+    const fullPath = path.join(BASE_DIR, candidate);
+    if (fs.existsSync(fullPath)) {
+      return fullPath;
+    }
+  }
+  throw new Error(
+    `No config file found. Supported: ${CONFIG_CANDIDATES.join(', ')}`
+  );
+}
+
+function parseConfigFile(filePath: string): Record<string, any> {
+  const ext = path.extname(filePath).toLowerCase();
+  const content = fs.readFileSync(filePath, 'utf-8');
+
+  switch (ext) {
+    case '.yaml':
+    case '.yml':
+      return parseYaml(content) as Record<string, any>;
+    case '.toml':
+      return parseToml(content);
+    case '.json':
+      return JSON.parse(content);
+    default:
+      throw new Error(`Unsupported config format: ${ext}`);
+  }
+}
+
+export function loadConfig(configPath?: string): AppConfig {
   if (config) {
     return config;
   }
 
-  if (!fs.existsSync(CONFIG_PATH)) {
-    throw new Error(`Config file not found: ${CONFIG_PATH}`);
-  }
+  const filePath = configPath || findConfigFile();
+  const rawConfig = parseConfigFile(filePath);
+  loadedConfigPath = filePath;
 
-  const rawConfig = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
-
-  const loadedConfig: AppConfig = {
+  const loadedConfig = {
     ...rawConfig,
     discord: {
       ...rawConfig.discord,
-      token: process.env.DISCORD_TOKEN || rawConfig.discord.token,
+      token: process.env.DISCORD_TOKEN || rawConfig.discord?.token,
     },
     telegram: {
       ...rawConfig.telegram,
-      token: process.env.TELEGRAM_TOKEN || rawConfig.telegram.token,
+      token: process.env.TELEGRAM_TOKEN || rawConfig.telegram?.token,
     },
-  };
+    twitter: {
+      authToken: process.env.TWITTER_AUTH_TOKEN || rawConfig.twitter?.authToken || '',
+      ct0: process.env.TWITTER_CT0 || rawConfig.twitter?.ct0 || '',
+      username: process.env.TWITTER_USERNAME || rawConfig.twitter?.username,
+      password: process.env.TWITTER_PASSWORD || rawConfig.twitter?.password,
+      email: process.env.TWITTER_EMAIL || rawConfig.twitter?.email,
+      totpSecret: process.env.TWITTER_TOTP_SECRET || rawConfig.twitter?.totpSecret,
+    },
+    xToImageApiUrl: process.env.X_TO_IMAGE_API_URL || rawConfig.xToImageApiUrl,
+    xToImageApiToken: process.env.X_TO_IMAGE_API_TOKEN || rawConfig.xToImageApiToken,
+    xToImageApiTheme: process.env.X_TO_IMAGE_API_THEME as 'light' | 'dim' | 'dark' | undefined || rawConfig.xToImageApiTheme,
+  } as AppConfig;
 
   validateConfig(loadedConfig);
   config = loadedConfig;
+  console.log(`Configuration loaded from ${filePath}`);
   return config;
 }
 
@@ -50,15 +98,11 @@ function validateConfig(cfg: AppConfig): void {
     throw new Error('Telegram is enabled but token or chatId is missing');
   }
 
-  if (!cfg.nitterInstances || cfg.nitterInstances.length === 0) {
-    console.warn('No nitter instances configured, using defaults');
-    cfg.nitterInstances = [
-      'https://xcancel.com',
-      'https://nitter.poast.org',
-      'https://nitter.privacyredirect.com',
-      'https://nitter.kareem.one',
-      'https://nitter.catsarch.com',
-    ];
+  const hasCookies = cfg.twitter.authToken && cfg.twitter.ct0;
+  const hasLogin = cfg.twitter.username && cfg.twitter.password;
+
+  if (!hasCookies && !hasLogin) {
+    console.warn('No Twitter auth configured, will use guest mode (limited rate/access)');
   }
 
   if (!cfg.pollIntervalMinutes || cfg.pollIntervalMinutes < 1) {
@@ -71,6 +115,10 @@ function validateConfig(cfg: AppConfig): void {
 
   if (!cfg.maxTweetAgeMinutes || cfg.maxTweetAgeMinutes < 1) {
     cfg.maxTweetAgeMinutes = 60;
+  }
+
+  if (!cfg.imageCacheTtlMinutes || cfg.imageCacheTtlMinutes < 1) {
+    cfg.imageCacheTtlMinutes = 60;
   }
 
   if (cfg.enableApproval) {
@@ -89,4 +137,8 @@ export function getConfig(): AppConfig {
     return loadConfig();
   }
   return config;
+}
+
+export function getConfigPath(): string | null {
+  return loadedConfigPath;
 }

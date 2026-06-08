@@ -1,0 +1,66 @@
+sendAsImage = true
+enableApproval = true
+pollIntervalMinutes = 5
+maxPostsPerFetch = 20
+maxTweetAgeMinutes = 60
+imageCacheTtlMinutes = 60
+xToImageApiUrl = ""
+xToImageApiToken = ""
+xToImageApiTheme = "dark"
+
+[[users]]
+username = "elonmusk"
+displayName = "Elon Musk"
+
+[users.filters]
+excludeRetweets = true
+excludeReplies = false
+
+[users.filters.keywords]
+include = ["tesla", "spacex", "twitter"]
+exclude = ["ad", "sponsored"]
+
+[users.filters.media]
+requireMedia = false
+
+[[users]]
+username = "RhenCloud_"
+displayName = "RhenCloud"
+
+[users.filters]
+excludeRetweets = false
+excludeReplies = false
+
+[users.filters.keywords]
+include = []
+exclude = []
+
+[users.filters.media]
+requireMedia = false
+
+[discord]
+enabled = false
+token = "YOUR_DISCORD_BOT_TOKEN"
+channelId = "YOUR_CHANNEL_ID"
+adminChannelId = "YOUR_ADMIN_CHANNEL_ID"
+embedColor = "#1DA1F2"
+
+[telegram]
+enabled = true
+token = "YOUR_TELEGRAM_BOT_TOKEN"
+chatId = "-1001234567890"
+adminChatIds = ["111111111", "222222222"]
+parseMode = "HTML"
+apiRoot = ""
+
+[telegram.targets]
+[telegram.targets.r14]
+chatId = "-100_R14_CHAT_ID"
+
+[twitter]
+authToken = ""
+ct0 = ""
+username = ""
+password = ""
+email = ""
+totpSecret = ""
