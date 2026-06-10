@@ -113,6 +113,7 @@ export interface GroupConfig {
   telegram?: GroupTelegramConfig;
   discord?: GroupDiscordConfig;
   approval?: GroupApprovalConfig;
+  blockedUsers?: string[];
 }
 
 export interface ProcessedTweet extends Tweet {

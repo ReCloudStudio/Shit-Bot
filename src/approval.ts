@@ -124,6 +124,11 @@ export async function sendForApproval(tweet: ProcessedTweet): Promise<boolean> {
   let anySent = false;
 
   for (const group of groups) {
+    if (group.blockedUsers?.includes(tweet.author)) {
+      console.log(`Skipping approval for group ${group.name}: blocked user @${tweet.author}`);
+      continue;
+    }
+
     const approvalId = `${group.name}:${tweet.id}_${Date.now()}`;
     const telegramMessageIds = new Map<string, number>();
     const discordMessageIds = new Map<string, string>();
@@ -644,6 +649,11 @@ export async function sendToAllGroups(tweet: ProcessedTweet): Promise<void> {
   const imageBuf = getCachedImage(tweet.id) || undefined;
 
   for (const group of groups) {
+    if (group.blockedUsers?.includes(tweet.author)) {
+      console.log(`Skipping group ${group.name}: blocked user @${tweet.author}`);
+      continue;
+    }
+
     if (group.telegram && config.telegram.enabled) {
       withTimeout(sendToTelegram(tweet, group.telegram.chatId, true, imageBuf).then(Boolean), 20000, `${group.name}/Telegram/main`);
       for (const [tag, target] of Object.entries(group.telegram.targets || {})) {
