@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { getConfig, saveConfig, reloadConfig } from '../config';
 import { getRecentTweets, getSentCount } from '../storage';
-import { AppConfig, UserConfig } from '../types';
+import { AppConfig, UserConfig, GroupConfig } from '../types';
 
 interface IncomingMessage extends http.IncomingMessage {
   body?: string;
@@ -49,6 +49,7 @@ function requireAuth(_req: IncomingMessage, res: http.ServerResponse): boolean {
 function sanitizeConfigForAPI(cfg: AppConfig): any {
   return {
     users: cfg.users,
+    groups: cfg.groups || [],
     discord: { ...cfg.discord, token: cfg.discord.token ? '••••••••' : '' },
     telegram: { ...cfg.telegram, token: cfg.telegram.token ? '••••••••' : '' },
     twitter: {
@@ -149,6 +150,7 @@ async function handleAPI(req: IncomingMessage, res: http.ServerResponse, urlPath
       if (body.pollIntervalMinutes !== undefined) cfg.pollIntervalMinutes = body.pollIntervalMinutes;
       if (body.maxPostsPerFetch !== undefined) cfg.maxPostsPerFetch = body.maxPostsPerFetch;
       if (body.maxTweetAgeMinutes !== undefined) cfg.maxTweetAgeMinutes = body.maxTweetAgeMinutes;
+      if (body.groups !== undefined) cfg.groups = body.groups;
 
       saveConfig(cfg);
       sendJSON(res, { success: true });
@@ -213,6 +215,90 @@ async function handleAPI(req: IncomingMessage, res: http.ServerResponse, urlPath
 
       saveConfig(cfg);
       sendJSON(res, { success: true, user });
+      return;
+    }
+
+    if (req.method === 'GET' && urlPath === '/api/groups') {
+      const cfg = getConfig();
+      sendJSON(res, cfg.groups || []);
+      return;
+    }
+
+    if (req.method === 'POST' && urlPath === '/api/groups') {
+      const body = JSON.parse(req.body || '{}');
+      const cfg = getConfig();
+
+      if (!body.name) {
+        sendError(res, 'Group name is required');
+        return;
+      }
+
+      if (!cfg.groups) cfg.groups = [];
+      if (cfg.groups.find(g => g.name === body.name)) {
+        sendError(res, 'Group already exists');
+        return;
+      }
+
+      const group: GroupConfig = {
+        name: body.name,
+        telegram: body.telegram,
+        discord: body.discord,
+        approval: body.approval,
+        blockedUsers: body.blockedUsers || [],
+      };
+
+      cfg.groups.push(group);
+      saveConfig(cfg);
+      sendJSON(res, { success: true, group });
+      return;
+    }
+
+    if (req.method === 'DELETE' && urlPath.startsWith('/api/groups/')) {
+      const gname = urlPath.replace('/api/groups/', '');
+      const cfg = getConfig();
+      const idx = (cfg.groups || []).findIndex(g => g.name === gname);
+
+      if (idx === -1) {
+        sendError(res, 'Group not found', 404);
+        return;
+      }
+
+      cfg.groups!.splice(idx, 1);
+      saveConfig(cfg);
+      sendJSON(res, { success: true });
+      return;
+    }
+
+    if (req.method === 'PUT' && urlPath.startsWith('/api/groups/')) {
+      const gname = urlPath.replace('/api/groups/', '');
+      const body = JSON.parse(req.body || '{}');
+      const cfg = getConfig();
+
+      if (!cfg.groups) {
+        sendError(res, 'No groups configured', 404);
+        return;
+      }
+
+      const group = cfg.groups.find(g => g.name === gname);
+      if (!group) {
+        sendError(res, 'Group not found', 404);
+        return;
+      }
+
+      if (body.name && body.name !== gname) {
+        if (cfg.groups.find(g => g.name === body.name)) {
+          sendError(res, 'Group name already taken');
+          return;
+        }
+        group.name = body.name;
+      }
+      if (body.telegram !== undefined) group.telegram = body.telegram;
+      if (body.discord !== undefined) group.discord = body.discord;
+      if (body.approval !== undefined) group.approval = body.approval;
+      if (body.blockedUsers !== undefined) group.blockedUsers = body.blockedUsers;
+
+      saveConfig(cfg);
+      sendJSON(res, { success: true, group });
       return;
     }
 
