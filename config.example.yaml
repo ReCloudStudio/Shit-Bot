@@ -1,39 +1,13 @@
-# ─── Users (no-groups mode) ───────────────────────────────────────────────────
-# When no groups are defined, all tweets go to the top-level Discord/Telegram.
-users:
-  - username: elonmusk
-    displayName: Elon Musk
-    filters:
-      keywords:
-        include:
-          - tesla
-          - spacex
-        exclude:
-          - ad
-          - sponsored
-      media:
-        requireMedia: false
-      excludeRetweets: true
-      excludeReplies: false
+# ─── Platform credentials & global settings ───────────────────────────────────
 
-# ─── Top-level platform config ────────────────────────────────────────────────
-# Used when no groups are defined.
 discord:
   enabled: false
   token: YOUR_DISCORD_BOT_TOKEN
-  channelId: YOUR_CHANNEL_ID
-  adminChannelId: YOUR_ADMIN_CHANNEL_ID
   embedColor: "#1DA1F2"
 
 telegram:
   enabled: true
   token: YOUR_TELEGRAM_BOT_TOKEN
-  chatId: "-1001234567890"
-  adminChatIds:
-    - "111111111"
-  targets:
-    r14:
-      chatId: "-100_R14_CHAT_ID"
   parseMode: HTML
   apiRoot: ""
 
@@ -61,30 +35,44 @@ pollIntervalMinutes: 5
 maxPostsPerFetch: 20
 maxTweetAgeMinutes: 60
 
-# ─── Groups mode (optional) ───────────────────────────────────────────────────
-# When groups are defined, each group has its own users and target channels.
-# The top-level users field is ignored when groups exist.
-#
-# groups:
-#   - name: my-group
-#     users:
-#       - username: elonmusk
-#         displayName: Elon
-#         filters:
-#           keywords:
-#             include: [tesla]
-#           excludeRetweets: true
-#     discord:
-#       channelId: "1234567890"
-#       r14ChannelId: "1234567891"
-#     telegram:
-#       chatId: "-1001234567890"
-#     approval:
-#       discordAdminChannelId: "1234567892"
-#       discordApproveRoleId: "1234567893"
-#   - name: another-group
-#     users:
-#       - username: spacex
-#         displayName: SpaceX
-#     discord:
-#       channelId: "9876543210"
+# ─── Groups (required) ────────────────────────────────────────────────────────
+# Each group has its own users, target channels, and approval settings.
+
+groups:
+  - name: my-group
+    users:
+      - username: elonmusk
+        displayName: Elon
+        filters:
+          keywords:
+            include: [tesla, spacex]
+          excludeRetweets: true
+      - username: RhenCloud_
+        displayName: RhenCloud
+        filters:
+          keywords:
+            include: []
+            exclude: []
+          media:
+            requireMedia: false
+    discord:
+      channelId: "1234567890"
+      r14ChannelId: "1234567891"
+    telegram:
+      chatId: "-1001234567890"
+      targets:
+        r14:
+          chatId: "-100_R14_CHAT_ID"
+    approval:
+      discordAdminChannelId: "1234567892"
+      discordApproveRoleId: "1234567893"
+      telegramAdminChatIds:
+        - "111111111"
+
+  - name: another-group
+    users:
+      - username: spacex
+        displayName: SpaceX
+        filters: {}
+    discord:
+      channelId: "9876543210"

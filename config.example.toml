@@ -1,4 +1,5 @@
-# ─── No-groups mode: top-level users ──────────────────────────────────────────
+# ─── Platform credentials & global settings ───────────────────────────────────
+
 sendAsImage = true
 enableApproval = true
 pollIntervalMinutes = 5
@@ -9,54 +10,16 @@ xToImageApiUrl = ""
 xToImageApiToken = ""
 xToImageApiTheme = "dark"
 
-[[users]]
-username = "elonmusk"
-displayName = "Elon Musk"
-
-[users.filters]
-excludeRetweets = true
-excludeReplies = false
-
-[users.filters.keywords]
-include = ["tesla", "spacex", "twitter"]
-exclude = ["ad", "sponsored"]
-
-[users.filters.media]
-requireMedia = false
-
-[[users]]
-username = "RhenCloud_"
-displayName = "RhenCloud"
-
-[users.filters]
-excludeRetweets = false
-excludeReplies = false
-
-[users.filters.keywords]
-include = []
-exclude = []
-
-[users.filters.media]
-requireMedia = false
-
 [discord]
 enabled = false
 token = "YOUR_DISCORD_BOT_TOKEN"
-channelId = "YOUR_CHANNEL_ID"
-adminChannelId = "YOUR_ADMIN_CHANNEL_ID"
 embedColor = "#1DA1F2"
 
 [telegram]
 enabled = true
 token = "YOUR_TELEGRAM_BOT_TOKEN"
-chatId = "-1001234567890"
-adminChatIds = ["111111111", "222222222"]
 parseMode = "HTML"
 apiRoot = ""
-
-[telegram.targets]
-[telegram.targets.r14]
-chatId = "-100_R14_CHAT_ID"
 
 [twitter]
 authToken = ""
@@ -65,3 +28,74 @@ username = ""
 password = ""
 email = ""
 totpSecret = ""
+
+[webui]
+enabled = true
+port = 3000
+host = "0.0.0.0"
+password = ""
+
+# ─── Groups (required) ────────────────────────────────────────────────────────
+
+[[groups]]
+name = "my-group"
+
+[[groups.users]]
+username = "elonmusk"
+displayName = "Elon"
+
+[groups.users.filters]
+excludeRetweets = true
+excludeReplies = false
+
+[groups.users.filters.keywords]
+include = ["tesla", "spacex"]
+
+[groups.users.filters.media]
+requireMedia = false
+
+[[groups.users]]
+username = "RhenCloud_"
+displayName = "RhenCloud"
+
+[groups.users.filters]
+excludeRetweets = false
+
+[groups.users.filters.keywords]
+include = []
+
+[groups.users.filters.media]
+requireMedia = false
+
+[groups.discord]
+channelId = "1234567890"
+r14ChannelId = "1234567891"
+
+[groups.telegram]
+chatId = "-1001234567890"
+
+[groups.telegram.targets]
+[groups.telegram.targets.r14]
+chatId = "-100_R14_CHAT_ID"
+
+[groups.approval]
+discordAdminChannelId = "1234567892"
+discordApproveRoleId = "1234567893"
+telegramAdminChatIds = ["111111111"]
+
+[[groups]]
+name = "another-group"
+
+[[groups.users]]
+username = "spacex"
+displayName = "SpaceX"
+
+[groups.users.filters]
+[groups.users.filters.keywords]
+include = []
+
+[groups.users.filters.media]
+requireMedia = false
+
+[groups.discord]
+channelId = "9876543210"

@@ -27,16 +27,7 @@ export async function initDiscord(): Promise<boolean> {
 
     await client.login(config.discord.token);
 
-    if (config.discord.channelId) {
-      const channel = await client.channels.fetch(config.discord.channelId);
-      if (!channel || !channel.isTextBased()) {
-        throw new Error(`Discord channel ${config.discord.channelId} not found or is not a text channel`);
-      }
-      targetChannel = channel as TextChannel;
-      console.log(`Discord bot connected, targeting channel: ${targetChannel.name}`);
-    } else {
-      console.log('Discord bot connected (groups will specify target channels)');
-    }
+    console.log('Discord bot connected (groups specify target channels)');
 
     return true;
   } catch (error) {
@@ -67,8 +58,6 @@ export async function sendToDiscord(tweet: ProcessedTweet, channelId?: string, a
     } catch (e) {
       console.error(`Failed to fetch Discord channel ${channelId}:`, e);
     }
-  } else {
-    sendTo = targetChannel;
   }
 
   if (!sendTo) {

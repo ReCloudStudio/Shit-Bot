@@ -1056,71 +1056,29 @@ async function removeUser(username) {
 }
 
 function renderUsers() {
-  const groups = config.groups;
-  const hasGroups = !!(groups && groups.length > 0);
-
-  if (hasGroups) {
-    let h = '<p style="color:var(--text-dim);margin-bottom:16px">' + t('usersInGroups') + '</p>';
-    groups.forEach(g => {
-      const groupUsers = g.users || [];
-      if (!groupUsers.length) return;
-      h += '<div class="user-card" style="margin-bottom:12px"><div class="user-card-top"><span style="font-weight:600">📦 ' + g.name + '</span></div>';
-      groupUsers.forEach(u => {
-        const f = u.filters || {}, kw = f.keywords || {}, med = f.media || {};
-        h += '<div class="user-card" style="margin:6px 0;padding:8px;border:1px solid var(--border)"><div class="user-card-top">';
-        h += '<div class="user-info">' + avatarHTML(u.username, u.displayName);
-        h += '<span class="user-name">' + (u.displayName || u.username) + '</span>';
-        h += '<span class="user-handle">@' + u.username + '</span></div></div>';
-        h += '<div class="user-tags">';
-        if (kw.include && kw.include.length) h += '<span class="ftag on">+ ' + kw.include.join(', ') + '</span>';
-        if (kw.exclude && kw.exclude.length) h += '<span class="ftag">− ' + kw.exclude.join(', ') + '</span>';
-        h += '<span class="ftag ' + (med.requireMedia ? 'on' : '') + '">' + (med.requireMedia ? t('mediaOnly') : t('anyPost')) + '</span>';
-        h += '<span class="ftag ' + (f.excludeRetweets ? 'on' : '') + '">' + (f.excludeRetweets ? t('noRT') : t('withRT')) + '</span>';
-        h += '<span class="ftag ' + (f.excludeReplies ? 'on' : '') + '">' + (f.excludeReplies ? t('noReplies') : t('withReplies')) + '</span>';
-        h += '</div></div>';
-      });
-      h += '</div>';
-    });
-    if (h.indexOf('user-card') === -1) h += '<div class="empty"><div class="empty-icon">👤</div><p>' + t('noUsers') + '</p></div>';
-    $('#tab-users').innerHTML = h;
-    return;
-  }
-
-  let h = '<div class="add-bar">';
-  h += '<div class="field"><label>' + t('username') + '</label><input id="new-username" placeholder="' + t('phHandle') + '"></div>';
-  h += '<div class="field"><label>' + t('displayName') + '</label><input id="new-display" placeholder="' + t('phName') + '"></div>';
-  h += '<button class="btn btn-primary" onclick="addUser()" style="height:42px">' + t('addUser') + '</button>';
-  h += '</div>';
-
-  if (!config.users.length) {
-    h += '<div class="empty"><div class="empty-icon">👤</div><p>' + t('noUsers') + '</p></div>';
-  } else {
-    h += '<div class="user-list">';
-    config.users.forEach((u, i) => {
+  const groups = config.groups || [];
+  let h = '<p style="color:var(--text-dim);margin-bottom:16px">' + t('usersInGroups') + '</p>';
+  groups.forEach(g => {
+    const groupUsers = g.users || [];
+    if (!groupUsers.length) return;
+    h += '<div class="user-card" style="margin-bottom:12px"><div class="user-card-top"><span style="font-weight:600">📦 ' + g.name + '</span></div>';
+    groupUsers.forEach(u => {
       const f = u.filters || {}, kw = f.keywords || {}, med = f.media || {};
-      h += '<div class="user-card">';
-      h += '<div class="user-card-top">';
+      h += '<div class="user-card" style="margin:6px 0;padding:8px;border:1px solid var(--border)"><div class="user-card-top">';
       h += '<div class="user-info">' + avatarHTML(u.username, u.displayName);
       h += '<span class="user-name">' + (u.displayName || u.username) + '</span>';
-      h += '<span class="user-handle">@' + u.username + '</span></div>';
-      h += '<button class="btn btn-danger btn-xs" onclick="removeUser(\'' + u.username + '\')">' + t('remove') + '</button>';
-      h += '</div>';
+      h += '<span class="user-handle">@' + u.username + '</span></div></div>';
       h += '<div class="user-tags">';
       if (kw.include && kw.include.length) h += '<span class="ftag on">+ ' + kw.include.join(', ') + '</span>';
       if (kw.exclude && kw.exclude.length) h += '<span class="ftag">− ' + kw.exclude.join(', ') + '</span>';
       h += '<span class="ftag ' + (med.requireMedia ? 'on' : '') + '">' + (med.requireMedia ? t('mediaOnly') : t('anyPost')) + '</span>';
       h += '<span class="ftag ' + (f.excludeRetweets ? 'on' : '') + '">' + (f.excludeRetweets ? t('noRT') : t('withRT')) + '</span>';
       h += '<span class="ftag ' + (f.excludeReplies ? 'on' : '') + '">' + (f.excludeReplies ? t('noReplies') : t('withReplies')) + '</span>';
-      h += '</div>';
-      h += '<button class="btn btn-ghost btn-sm" onclick="toggleFilters(\'' + u.username + '\')" style="margin-top:8px">' + t('editFilters') + '</button>';
-      h += '<div id="filters-' + i + '" class="user-filters-box" style="display:none">';
-      h += buildFilterForm(u, i);
-      h += '<button class="btn btn-primary btn-sm" onclick="saveUserFilters(\'' + u.username + '\', ' + i + ')" style="margin-top:10px">' + t('save') + '</button>';
-      h += '</div>';
-      h += '</div>';
+      h += '</div></div>';
     });
     h += '</div>';
-  }
+  });
+  if (h.indexOf('user-card') === -1) h += '<div class="empty"><div class="empty-icon">👤</div><p>' + t('noUsers') + '</p></div>';
   $('#tab-users').innerHTML = h;
 }
 
@@ -1141,8 +1099,8 @@ function renderCard(title, fields, saveKey) {
 
 async function saveSection(section) {
   const fieldMap = {
-    discord: ['discord.enabled', 'discord.token', 'discord.channelId', 'discord.adminChannelId', 'discord.r14ChannelId', 'discord.approveRoleId', 'discord.embedColor'],
-    telegram: ['telegram.enabled', 'telegram.token', 'telegram.chatId', 'telegram.parseMode', 'telegram.apiRoot'],
+    discord: ['discord.enabled', 'discord.token', 'discord.embedColor'],
+    telegram: ['telegram.enabled', 'telegram.token', 'telegram.parseMode', 'telegram.apiRoot'],
     twitter: ['twitter.authToken', 'twitter.ct0', 'twitter.username', 'twitter.password', 'twitter.email', 'twitter.totpSecret'],
     settings: ['enableApproval', 'sendAsImage', 'xToImageApiUrl', 'xToImageApiToken', 'xToImageApiTheme', 'pollIntervalMinutes', 'maxPostsPerFetch', 'maxTweetAgeMinutes', 'imageCacheTtlMinutes', 'webui.port', 'webui.host', 'webui.password'],
   };
@@ -1175,10 +1133,6 @@ function renderDiscord() {
   $('#tab-discord').innerHTML = renderCard('Discord', [
     { label: t('enable'), key: 'discord.enabled', val: d.enabled, opts: { type: 'checkbox' } },
     { label: t('botToken'), key: 'discord.token', val: d.token, opts: { isSecret: true, placeholder: t('hintNewToken'), hint: t('hintKeep') } },
-    { label: t('channelId'), key: 'discord.channelId', val: d.channelId },
-    { label: t('adminChannelId'), key: 'discord.adminChannelId', val: d.adminChannelId || '' },
-    { label: t('r14ChannelId'), key: 'discord.r14ChannelId', val: d.r14ChannelId || '' },
-    { label: t('approveRoleId'), key: 'discord.approveRoleId', val: d.approveRoleId || '' },
     { label: t('embedColor'), key: 'discord.embedColor', val: d.embedColor, opts: { placeholder: t('phColor') } },
   ], 'discord');
 }
@@ -1188,12 +1142,8 @@ function renderTelegram() {
   $('#tab-telegram').innerHTML = renderCard('Telegram', [
     { label: t('enable'), key: 'telegram.enabled', val: tg.enabled, opts: { type: 'checkbox' } },
     { label: t('botToken'), key: 'telegram.token', val: tg.token, opts: { isSecret: true, placeholder: t('hintNewToken') } },
-    { label: t('chatId'), key: 'telegram.chatId', val: tg.chatId },
     { label: t('parseMode'), key: 'telegram.parseMode', val: tg.parseMode || 'HTML', opts: { type: 'select', options: ['HTML', 'Markdown'] } },
     { label: t('apiRoot'), key: 'telegram.apiRoot', val: tg.apiRoot || '', opts: { placeholder: t('hintProxy') } },
-    '<div class="field"><label>' + t('adminChatIds') + '</label><div class="chip-array" id="arr_admin_ids">' +
-    (tg.adminChatIds || []).map(id => chipHTML(id)).join('') +
-    '<input onkeydown="addChip(event, this, \'arr_admin_ids\')" placeholder="' + t('phAddId') + '"></div><div class="field-hint">' + t('hintEnterAdd') + '</div></div>',
   ], 'telegram');
 }
 

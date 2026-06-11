@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import * as http from 'http';
-import { loadConfig, getConfig } from './config';
+import { loadConfig, getConfig, getEffectiveGroups } from './config';
 import { fetchAllTweets } from './rss/fetcher';
 import { filterTweets, getPassedTweets } from './filters';
 import { initDiscord, shutdownDiscord, getDiscordClient, registerDiscordCommands } from './bots/discord';
@@ -18,7 +18,13 @@ let webServer: http.Server | null = null;
 
 async function processAndSendTweets(username: string, tweets: Tweet[]): Promise<void> {
   const config = getConfig();
-  const userConfig = config.users.find((u) => u.username === username);
+  const groups = getEffectiveGroups();
+  let userConfig = undefined;
+
+  for (const g of groups) {
+    const u = (g.users || []).find(u => u.username === username);
+    if (u) { userConfig = u; break; }
+  }
 
   if (!userConfig) {
     console.warn(`No config found for user @${username}`);
@@ -199,9 +205,17 @@ async function start(): Promise<void> {
     process.exit(1);
   }
 
-  console.log(`\nMonitoring ${config.users.length} users:`);
-  for (const user of config.users) {
-    console.log(`  - @${user.username}`);
+  const groups = getEffectiveGroups();
+  const uniqueUsers = new Map<string, string>();
+  for (const g of groups) {
+    for (const u of (g.users || [])) {
+      uniqueUsers.set(u.username, u.displayName || u.username);
+    }
+  }
+
+  console.log(`\nMonitoring ${uniqueUsers.size} users:`);
+  for (const username of uniqueUsers.keys()) {
+    console.log(`  - @${username}`);
   }
 
   console.log(`\nPoll interval: ${config.pollIntervalMinutes} minute(s)`);

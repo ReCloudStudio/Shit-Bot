@@ -77,7 +77,11 @@ export async function initTelegram(): Promise<boolean> {
 export async function sendToTelegram(tweet: ProcessedTweet, targetChatId?: string, asImage?: boolean, preRenderedImage?: Buffer): Promise<boolean> {
   const config = getConfig();
   const sendImage = asImage ?? config.sendAsImage;
-  const chatId = targetChatId || config.telegram.chatId;
+  const chatId = targetChatId;
+  if (!chatId) {
+    console.error('No chat ID provided for Telegram send');
+    return false;
+  }
 
   if (!bot) {
     console.error('Telegram not initialized');

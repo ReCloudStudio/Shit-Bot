@@ -37,9 +37,7 @@ export interface UserConfig {
 export interface DiscordConfig {
   enabled: boolean;
   token: string;
-  channelId: string;
   adminChannelId?: string;
-  r14ChannelId?: string;
   approveRoleId?: string;
   embedColor?: string;
 }
@@ -51,9 +49,7 @@ export interface TelegramTarget {
 export interface TelegramConfig {
   enabled: boolean;
   token: string;
-  chatId: string;
   adminChatIds?: string[];
-  targets?: Record<string, TelegramTarget>;
   parseMode?: 'HTML' | 'Markdown';
   apiRoot?: string;
 }
@@ -75,7 +71,7 @@ export interface WebUIConfig {
 }
 
 export interface AppConfig {
-  users: UserConfig[];
+  users?: UserConfig[];
   discord: DiscordConfig;
   telegram: TelegramConfig;
   twitter: TwitterConfig;

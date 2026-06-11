@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { getConfig, saveConfig, reloadConfig, getEffectiveGroups } from '../config';
 import { getRecentTweets, getSentCount } from '../storage';
-import { AppConfig, UserConfig, GroupConfig } from '../types';
+import { AppConfig, GroupConfig } from '../types';
 
 interface IncomingMessage extends http.IncomingMessage {
   body?: string;
@@ -48,7 +48,7 @@ function requireAuth(_req: IncomingMessage, res: http.ServerResponse): boolean {
 
 function sanitizeConfigForAPI(cfg: AppConfig): any {
   return {
-    users: cfg.users,
+    users: [],
     groups: cfg.groups || [],
     discord: { ...cfg.discord, token: cfg.discord.token ? '••••••••' : '' },
     telegram: { ...cfg.telegram, token: cfg.telegram.token ? '••••••••' : '' },
@@ -114,7 +114,6 @@ async function handleAPI(req: IncomingMessage, res: http.ServerResponse, urlPath
       const body = JSON.parse(req.body || '{}');
       const cfg = getConfig();
 
-      if (body.users !== undefined) cfg.users = body.users;
       if (body.discord !== undefined) {
         cfg.discord = { ...cfg.discord, ...body.discord };
         if (body.discord.token === '••••••••' || body.discord.token === '') {
@@ -154,67 +153,6 @@ async function handleAPI(req: IncomingMessage, res: http.ServerResponse, urlPath
 
       saveConfig(cfg);
       sendJSON(res, { success: true });
-      return;
-    }
-
-    if (req.method === 'POST' && urlPath === '/api/users') {
-      const body = JSON.parse(req.body || '{}');
-      const cfg = getConfig();
-
-      if (!body.username) {
-        sendError(res, 'Username is required');
-        return;
-      }
-
-      if (cfg.users.find(u => u.username === body.username)) {
-        sendError(res, 'User already exists');
-        return;
-      }
-
-      const user: UserConfig = {
-        username: body.username,
-        displayName: body.displayName || body.username,
-        filters: body.filters || {},
-      };
-
-      cfg.users.push(user);
-      saveConfig(cfg);
-      sendJSON(res, { success: true, user });
-      return;
-    }
-
-    if (req.method === 'DELETE' && urlPath.startsWith('/api/users/')) {
-      const username = urlPath.replace('/api/users/', '');
-      const cfg = getConfig();
-      const idx = cfg.users.findIndex(u => u.username === username);
-
-      if (idx === -1) {
-        sendError(res, 'User not found', 404);
-        return;
-      }
-
-      cfg.users.splice(idx, 1);
-      saveConfig(cfg);
-      sendJSON(res, { success: true });
-      return;
-    }
-
-    if (req.method === 'PUT' && urlPath.startsWith('/api/users/')) {
-      const username = urlPath.replace('/api/users/', '');
-      const body = JSON.parse(req.body || '{}');
-      const cfg = getConfig();
-      const user = cfg.users.find(u => u.username === username);
-
-      if (!user) {
-        sendError(res, 'User not found', 404);
-        return;
-      }
-
-      if (body.displayName !== undefined) user.displayName = body.displayName;
-      if (body.filters !== undefined) user.filters = body.filters;
-
-      saveConfig(cfg);
-      sendJSON(res, { success: true, user });
       return;
     }
 

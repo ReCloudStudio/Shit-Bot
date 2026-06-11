@@ -103,34 +103,47 @@ export function loadConfig(configPath?: string): AppConfig {
 }
 
 function validateConfig(cfg: AppConfig): void {
-  const hasGroups = !!(cfg.groups && cfg.groups.length > 0);
+  if (!cfg.groups || cfg.groups.length === 0) {
+    throw new Error('No groups configured. At least one group with users is required.');
+  }
 
-  if (hasGroups) {
-    const allGroupUsers = cfg.groups!.flatMap(g => g.users || []);
-    if (allGroupUsers.length === 0) {
-      throw new Error('At least one group must have users configured to monitor');
+  let hasAnyUser = false;
+  const names = new Set<string>();
+
+  for (const g of cfg.groups) {
+    if (!g.name) {
+      throw new Error('Each group must have a name');
     }
-  } else {
-    if (!cfg.users || cfg.users.length === 0) {
-      throw new Error('No users configured to monitor');
+    if (names.has(g.name)) {
+      throw new Error(`Duplicate group name: ${g.name}`);
     }
+    names.add(g.name);
+
+    if (g.users && g.users.length > 0) {
+      hasAnyUser = true;
+    }
+
+    if (g.telegram && !g.telegram.chatId) {
+      throw new Error(`Group "${g.name}" has telegram config but no chatId`);
+    }
+    if (g.discord && !g.discord.channelId) {
+      throw new Error(`Group "${g.name}" has discord config but no channelId`);
+    }
+  }
+
+  if (!hasAnyUser) {
+    throw new Error('At least one group must have users configured');
   }
 
   if (cfg.discord.enabled) {
     if (!cfg.discord.token) {
       throw new Error('Discord is enabled but token is missing');
     }
-    if (!hasGroups && !cfg.discord.channelId) {
-      throw new Error('Discord is enabled but channelId is missing');
-    }
   }
 
   if (cfg.telegram.enabled) {
     if (!cfg.telegram.token) {
       throw new Error('Telegram is enabled but token is missing');
-    }
-    if (!hasGroups && !cfg.telegram.chatId) {
-      throw new Error('Telegram is enabled but chatId is missing');
     }
   }
 
@@ -157,37 +170,13 @@ function validateConfig(cfg: AppConfig): void {
     cfg.imageCacheTtlMinutes = 60;
   }
 
-  if (cfg.groups && cfg.groups.length > 0) {
-    const names = new Set<string>();
-    for (const g of cfg.groups) {
-      if (!g.name) {
-        throw new Error('Each group must have a name');
-      }
-      if (names.has(g.name)) {
-        throw new Error(`Duplicate group name: ${g.name}`);
-      }
-      names.add(g.name);
-
-      if (g.telegram && !g.telegram.chatId) {
-        throw new Error(`Group "${g.name}" has telegram config but no chatId`);
-      }
-      if (g.discord && !g.discord.channelId) {
-        throw new Error(`Group "${g.name}" has discord config but no channelId`);
-      }
-    }
-  }
-
   if (cfg.enableApproval) {
-    const hasRootAdmins =
-      (cfg.telegram.enabled && cfg.telegram.adminChatIds && cfg.telegram.adminChatIds.length > 0) ||
-      (cfg.discord.enabled && cfg.discord.adminChannelId);
-
     const hasGroupAdmins = cfg.groups?.some(g =>
       (g.telegram && g.approval?.telegramAdminChatIds?.length) ||
       (g.discord && g.approval?.discordAdminChannelId)
     );
 
-    if (!hasRootAdmins && !hasGroupAdmins) {
+    if (!hasGroupAdmins) {
       console.warn('Approval enabled but no admin configured, disabling approval');
       cfg.enableApproval = false;
     }
@@ -203,29 +192,7 @@ export function getConfig(): AppConfig {
 
 export function getEffectiveGroups(): GroupConfig[] {
   const cfg = getConfig();
-  if (cfg.groups && cfg.groups.length > 0) {
-    return cfg.groups;
-  }
-
-  const groups: GroupConfig[] = [{
-    name: 'default',
-    users: cfg.users,
-    telegram: cfg.telegram.enabled ? {
-      chatId: cfg.telegram.chatId,
-      targets: cfg.telegram.targets,
-    } : undefined,
-    discord: cfg.discord.enabled ? {
-      channelId: cfg.discord.channelId,
-      r14ChannelId: cfg.discord.r14ChannelId,
-    } : undefined,
-    approval: {
-      telegramAdminChatIds: cfg.telegram.adminChatIds,
-      discordAdminChannelId: cfg.discord.adminChannelId,
-      discordApproveRoleId: cfg.discord.approveRoleId,
-    },
-  }];
-
-  return groups;
+  return cfg.groups || [];
 }
 
 export function getAllMonitoredUsers(): Array<{ username: string; groups: string[] }> {
@@ -278,7 +245,6 @@ export function saveConfig(newConfig: AppConfig): void {
     throw new Error('No config file loaded');
   }
 
-  rawConfigData.users = newConfig.users;
   rawConfigData.discord = newConfig.discord;
   rawConfigData.telegram = newConfig.telegram;
   rawConfigData.twitter = newConfig.twitter;
