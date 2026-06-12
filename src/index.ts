@@ -12,6 +12,15 @@ import { initTwitterClient, loginWithCredentials } from './twitter';
 import { startWebServer } from './web/server';
 import { Tweet } from './types';
 
+const _log = console.log.bind(console);
+const _warn = console.warn.bind(console);
+const _error = console.error.bind(console);
+const ts = () => `[${new Date().toISOString()}]`;
+
+console.log = (...args: any[]) => _log(ts(), ...args);
+console.warn = (...args: any[]) => _warn(ts(), ...args);
+console.error = (...args: any[]) => _error(ts(), ...args);
+
 let isRunning = false;
 let cronJob: cron.ScheduledTask | null = null;
 let webServer: http.Server | null = null;
