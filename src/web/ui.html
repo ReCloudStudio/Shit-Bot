@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -884,7 +884,7 @@
 
 <script>
 let config = null;
-let lang = 'en';
+let lang = 'zh-CN';
 
 const messages = {
   en: {
@@ -1620,6 +1620,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const savedLang = localStorage.getItem('lang');
   if (savedLang && messages[savedLang]) lang = savedLang;
   else if (navigator.language.startsWith('zh')) lang = 'zh-CN';
+  else lang = 'zh-CN';
 
   const saved = localStorage.getItem('theme');
   if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {

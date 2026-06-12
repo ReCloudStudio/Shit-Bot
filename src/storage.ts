@@ -75,6 +75,7 @@ export function initDatabase(): void {
     CREATE TABLE IF NOT EXISTS pending_approvals (
       approval_id TEXT PRIMARY KEY,
       group_name TEXT NOT NULL,
+      tweet_id TEXT NOT NULL DEFAULT '',
       tweet_json TEXT NOT NULL,
       telegram_msg_ids TEXT NOT NULL DEFAULT '{}',
       discord_msg_ids TEXT NOT NULL DEFAULT '{}',
@@ -85,6 +86,12 @@ export function initDatabase(): void {
       has_image INTEGER NOT NULL DEFAULT 0
     )
   `);
+
+  try {
+    db.run('ALTER TABLE pending_approvals ADD COLUMN tweet_id TEXT NOT NULL DEFAULT \'\'');
+  } catch {
+    // column already exists
+  }
 
   db.run(`
     CREATE TABLE IF NOT EXISTS dead_letters (
@@ -98,7 +105,7 @@ export function initDatabase(): void {
   `);
   db.run('CREATE INDEX IF NOT EXISTS idx_dead_letters_tweet_id ON dead_letters(tweet_id)');
 
-  console.log(`Database initialized: ${DB_PATH}`);
+  console.log(`数据库已初始化: ${DB_PATH}`);
 }
 
 export function getDatabase(): Database {
@@ -150,7 +157,7 @@ export function cleanupOldRecords(maxAgeDays: number = 30): number {
   const result = database.run('DELETE FROM sent_tweets WHERE sent_at < ?', [cutoff]);
 
   if (result.changes > 0) {
-    console.log(`Cleaned up ${result.changes} old records`);
+    console.log(`已清理 ${result.changes} 条旧记录`);
   }
 
   return result.changes;
@@ -193,7 +200,7 @@ export function cleanupExpiredImages(maxAgeMinutes: number = 60): number {
   const result = database.run('DELETE FROM image_cache WHERE created_at < ?', [cutoff]);
 
   if (result.changes > 0) {
-    console.log(`Cleaned up ${result.changes} expired cached images`);
+    console.log(`已清理 ${result.changes} 条过期缓存图片`);
   }
 
   return result.changes;
@@ -301,6 +308,7 @@ export interface PersistedApproval {
 export function storePendingApproval(approval: {
   approvalId: string;
   groupName: string;
+  tweetId: string;
   tweetJson: string;
   telegramMsgIds: Record<string, number>;
   discordMsgIds: Record<string, string>;
@@ -310,11 +318,12 @@ export function storePendingApproval(approval: {
 }): void {
   const database = getDatabase();
   database.run(
-    `INSERT OR REPLACE INTO pending_approvals (approval_id, group_name, tweet_json, telegram_msg_ids, discord_msg_ids, created_at, approved, has_image)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT OR REPLACE INTO pending_approvals (approval_id, group_name, tweet_id, tweet_json, telegram_msg_ids, discord_msg_ids, created_at, approved, has_image)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       approval.approvalId,
       approval.groupName,
+      approval.tweetId,
       approval.tweetJson,
       JSON.stringify(approval.telegramMsgIds),
       JSON.stringify(approval.discordMsgIds),
@@ -348,6 +357,12 @@ export function getPendingApproval(approvalId: string): PersistedApproval | null
   return (database.query('SELECT * FROM pending_approvals WHERE approval_id = ?').get(approvalId) as PersistedApproval) || null;
 }
 
+export function hasPendingApprovalForTweet(tweetId: string): boolean {
+  const database = getDatabase();
+  const row = database.query('SELECT 1 FROM pending_approvals WHERE tweet_id = ? AND approved = 0').get(tweetId);
+  return !!row;
+}
+
 export function storeDeadLetter(tweetId: string, targetLabel: string, targetId: string, errorMessage: string): void {
   const database = getDatabase();
   database.run(
@@ -360,6 +375,6 @@ export function closeDatabase(): void {
   if (db) {
     db.close();
     db = null;
-    console.log('Database closed');
+    console.log('数据库已关闭');
   }
 }

@@ -42,7 +42,7 @@ function requireAuth(_req: IncomingMessage, res: http.ServerResponse): boolean {
     'WWW-Authenticate': 'Basic realm="ShitBot WebUI"',
     'Content-Type': 'application/json',
   });
-  res.end(JSON.stringify({ error: 'Unauthorized' }));
+  res.end(JSON.stringify({ error: '未授权' }));
   return false;
 }
 
@@ -86,7 +86,7 @@ function serveUI(res: http.ServerResponse): void {
     res.end(html);
   } catch {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>ShitBot</title></head><body><h1>UI file not found</h1></body></html>`);
+    res.end(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>ShitBot</title></head><body><h1>UI 文件未找到</h1></body></html>`);
   }
 }
 
@@ -167,13 +167,13 @@ async function handleAPI(req: IncomingMessage, res: http.ServerResponse, urlPath
       const cfg = getConfig();
 
       if (!body.name) {
-        sendError(res, 'Group name is required');
+        sendError(res, '群组名称为必填项');
         return;
       }
 
       if (!cfg.groups) cfg.groups = [];
       if (cfg.groups.find(g => g.name === body.name)) {
-        sendError(res, 'Group already exists');
+        sendError(res, '群组已存在');
         return;
       }
 
@@ -198,7 +198,7 @@ async function handleAPI(req: IncomingMessage, res: http.ServerResponse, urlPath
       const idx = (cfg.groups || []).findIndex(g => g.name === gname);
 
       if (idx === -1) {
-        sendError(res, 'Group not found', 404);
+        sendError(res, '群组未找到', 404);
         return;
       }
 
@@ -214,19 +214,19 @@ async function handleAPI(req: IncomingMessage, res: http.ServerResponse, urlPath
       const cfg = getConfig();
 
       if (!cfg.groups) {
-        sendError(res, 'No groups configured', 404);
+        sendError(res, '未配置任何群组', 404);
         return;
       }
 
       const group = cfg.groups.find(g => g.name === gname);
       if (!group) {
-        sendError(res, 'Group not found', 404);
+        sendError(res, '群组未找到', 404);
         return;
       }
 
       if (body.name && body.name !== gname) {
         if (cfg.groups.find(g => g.name === body.name)) {
-          sendError(res, 'Group name already taken');
+          sendError(res, '群组名称已被占用');
           return;
         }
         group.name = body.name;
@@ -270,10 +270,10 @@ async function handleAPI(req: IncomingMessage, res: http.ServerResponse, urlPath
       return;
     }
 
-    sendError(res, 'Not found', 404);
+    sendError(res, '未找到', 404);
   } catch (error) {
-    console.error('API error:', error);
-    sendError(res, 'Internal server error', 500);
+    console.error('API 错误:', error);
+    sendError(res, '服务器内部错误', 500);
   }
 }
 
@@ -281,7 +281,7 @@ export function startWebServer(): http.Server {
   const cfg = getConfig();
 
   if (!cfg.webui.enabled) {
-    console.log('WebUI is disabled');
+      console.log('WebUI 已在配置中禁用');
     const dummy = http.createServer();
     return dummy;
   }
@@ -305,9 +305,9 @@ export function startWebServer(): http.Server {
   });
 
   server.listen(cfg.webui.port, cfg.webui.host, () => {
-    console.log(`\nWebUI available at http://${cfg.webui.host}:${cfg.webui.port}`);
-    if (cfg.webui.password) {
-      console.log('WebUI password protection enabled');
+  console.log(`\nWebUI 访问地址: http://${cfg.webui.host}:${cfg.webui.port}`);
+  if (cfg.webui.password) {
+    console.log('WebUI 密码保护已启用');
     }
   });
 

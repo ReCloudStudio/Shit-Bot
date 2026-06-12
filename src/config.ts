@@ -36,7 +36,7 @@ export function findConfigFile(): string {
     }
   }
   throw new Error(
-    `No config file found. Supported: ${CONFIG_CANDIDATES.join(', ')}`
+    `找不到配置文件。支持的格式: ${CONFIG_CANDIDATES.join(', ')}`
   );
 }
 
@@ -53,7 +53,7 @@ function parseConfigFile(filePath: string): Record<string, any> {
     case '.json':
       return JSON.parse(content);
     default:
-      throw new Error(`Unsupported config format: ${ext}`);
+      throw new Error(`不支持的配置格式: ${ext}`);
   }
 }
 
@@ -98,13 +98,13 @@ export function loadConfig(configPath?: string): AppConfig {
 
   validateConfig(loadedConfig);
   config = loadedConfig;
-  console.log(`Configuration loaded from ${filePath}`);
+  console.log(`配置已从 ${filePath} 加载`);
   return config;
 }
 
 function validateConfig(cfg: AppConfig): void {
   if (!cfg.groups || cfg.groups.length === 0) {
-    throw new Error('No groups configured. At least one group with users is required.');
+    throw new Error('未配置群组, 至少需要一个包含用户的群组。');
   }
 
   let hasAnyUser = false;
@@ -112,10 +112,10 @@ function validateConfig(cfg: AppConfig): void {
 
   for (const g of cfg.groups) {
     if (!g.name) {
-      throw new Error('Each group must have a name');
+      throw new Error('每个群组必须有名称');
     }
     if (names.has(g.name)) {
-      throw new Error(`Duplicate group name: ${g.name}`);
+      throw new Error(`群组名称重复: ${g.name}`);
     }
     names.add(g.name);
 
@@ -151,7 +151,7 @@ function validateConfig(cfg: AppConfig): void {
   const hasLogin = cfg.twitter.username && cfg.twitter.password;
 
   if (!hasCookies && !hasLogin) {
-    console.warn('No Twitter auth configured, will use guest mode (limited rate/access)');
+    console.warn('未配置 Twitter 认证, 将使用访客模式 (速率和访问受限)');
   }
 
   if (!cfg.pollIntervalMinutes || cfg.pollIntervalMinutes < 1) {
@@ -177,7 +177,7 @@ function validateConfig(cfg: AppConfig): void {
     );
 
     if (!hasGroupAdmins) {
-      console.warn('Approval enabled but no admin configured, disabling approval');
+      console.warn('审批模式已启用但未配置管理员, 正在禁用审批');
       cfg.enableApproval = false;
     }
   }
@@ -242,7 +242,7 @@ export function getConfigPath(): string | null {
 
 export function saveConfig(newConfig: AppConfig): void {
   if (!loadedConfigPath || !rawConfigData) {
-    throw new Error('No config file loaded');
+    throw new Error('没有加载配置文件');
   }
 
   rawConfigData.discord = newConfig.discord;
@@ -272,13 +272,13 @@ export function saveConfig(newConfig: AppConfig): void {
       content = JSON.stringify(rawConfigData, null, 2);
       break;
     default:
-      throw new Error(`Unsupported config format for saving: ${ext}`);
+      throw new Error(`不支持的保存配置格式: ${ext}`);
   }
 
   fs.writeFileSync(loadedConfigPath, content, 'utf-8');
 
   config = newConfig;
-  console.log(`Configuration saved to ${loadedConfigPath}`);
+  console.log(`配置已保存至 ${loadedConfigPath}`);
 }
 
 export function reloadConfig(): AppConfig {

@@ -24,7 +24,7 @@ async function getGuestToken(): Promise<string> {
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to get guest token: ${response.status}`);
+    throw new Error(`获取访客 token 失败: ${response.status}`);
   }
 
   const data = await response.json() as { guest_token: string };
@@ -56,7 +56,7 @@ async function loginRequest(
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`Login request failed (${response.status}): ${text}`);
+    throw new Error(`登录请求失败 (${response.status}): ${text}`);
   }
 
   const setCookies = response.headers.getSetCookie?.() || [];
@@ -90,10 +90,10 @@ export async function loginWithCredentials(): Promise<LoginResult> {
   const { username, password, email, totpSecret } = config.twitter;
 
   if (!username || !password) {
-    throw new Error('Username and password are required for login');
+    throw new Error('用户名和密码是登录所必需的');
   }
 
-  console.log(`Logging in as @${username}...`);
+  console.log(`正在以 @${username} 登录...`);
 
   const guestToken = await getGuestToken();
   let cookies: Record<string, string> = {};
@@ -168,7 +168,7 @@ export async function loginWithCredentials(): Promise<LoginResult> {
 
   if (subtaskIds.includes('LoginEnterAlternateIdentifier')) {
     if (!email) {
-      throw new Error('Twitter requires email verification. Please provide email in config.');
+      throw new Error('Twitter 需要邮箱验证, 请在配置中提供邮箱.');
     }
 
     flowResult = await loginRequest(
@@ -221,7 +221,7 @@ export async function loginWithCredentials(): Promise<LoginResult> {
   if (postPasswordIds.includes('LoginTwoFactorAuthChallenge') || postPasswordIds.includes('LoginAcid')) {
     if (totpSecret) {
       const code = generateTOTPCode(totpSecret);
-      console.log('Submitting TOTP code...');
+      console.log('正在提交 TOTP 验证码...');
 
       flowResult = await loginRequest(
         '/1.1/onboarding/task.json',
@@ -242,7 +242,7 @@ export async function loginWithCredentials(): Promise<LoginResult> {
         cookies
       );
     } else if (email) {
-      console.log('Twitter requires verification. Please check your email for the code.');
+      console.log('Twitter 需要验证. 请检查邮箱获取验证码.');
 
       const readline = await import('readline');
       const rl = readline.createInterface({
@@ -251,7 +251,7 @@ export async function loginWithCredentials(): Promise<LoginResult> {
       });
 
       const code = await new Promise<string>((resolve) => {
-        rl.question('Enter verification code: ', (answer) => {
+        rl.question('请输入验证码: ', (answer) => {
           rl.close();
           resolve(answer.trim());
         });
@@ -278,7 +278,7 @@ export async function loginWithCredentials(): Promise<LoginResult> {
         cookies
       );
     } else {
-      throw new Error('Twitter requires 2FA. Provide totpSecret or email in config.');
+      throw new Error('Twitter 需要两步验证, 请在配置中提供 totpSecret 或 email.');
     }
 
     flowToken = flowResult.data.flow_token;
@@ -292,21 +292,21 @@ export async function loginWithCredentials(): Promise<LoginResult> {
 
   if (!hasLoggedIn) {
     const ids = finalSubtasks.map((s: LoginSubtask) => s.subtask_id);
-    throw new Error(`Login may have failed. Remaining subtasks: ${ids.join(', ')}`);
+    throw new Error(`登录可能失败, 剩余子任务: ${ids.join(', ')}`);
   }
 
   const authToken = cookies['auth_token'];
   const ct0 = cookies['ct0'];
 
   if (!authToken || !ct0) {
-    throw new Error('Login completed but cookies not found in response');
+    throw new Error('登录完成但未在响应中找到 Cookie');
   }
 
-  console.log('Login successful!');
-  console.log('\nAdd these to your config.json twitter section:');
+  console.log('登录成功!');
+  console.log('\n将这些添加到你的 config.json twitter 配置中:');
   console.log(`  "authToken": "${authToken}"`);
   console.log(`  "ct0": "${ct0}"`);
-  console.log('\nOr set environment variables:');
+  console.log('\n或设置环境变量:');
   console.log(`  TWITTER_AUTH_TOKEN=${authToken}`);
   console.log(`  TWITTER_CT0=${ct0}`);
 

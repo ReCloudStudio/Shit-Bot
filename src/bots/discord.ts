@@ -16,7 +16,7 @@ export async function initDiscord(): Promise<boolean> {
   const config = getConfig();
 
   if (!config.discord.enabled) {
-    console.log('Discord is disabled in config');
+    console.log('Discord 已在配置中禁用');
     return false;
   }
 
@@ -27,11 +27,11 @@ export async function initDiscord(): Promise<boolean> {
 
     await client.login(config.discord.token);
 
-    console.log('Discord bot connected (groups specify target channels)');
+    console.log('Discord bot 已连接 (群组指定目标频道)');
 
     return true;
   } catch (error) {
-    console.error('Failed to initialize Discord:', error);
+    console.error('Discord 初始化失败:', error);
     client = null;
     targetChannel = null;
     return false;
@@ -43,7 +43,7 @@ export async function sendToDiscord(tweet: ProcessedTweet, channelId?: string, a
   const sendImage = asImage ?? config.sendAsImage;
 
   if (!client) {
-    console.error('Discord not initialized');
+    console.error('Discord 未初始化');
     return null;
   }
 
@@ -56,12 +56,12 @@ export async function sendToDiscord(tweet: ProcessedTweet, channelId?: string, a
         sendTo = channel as TextChannel;
       }
     } catch (e) {
-      console.error(`Failed to fetch Discord channel ${channelId}:`, e);
+      console.error(`获取 Discord 频道 ${channelId} 失败:`, e);
     }
   }
 
   if (!sendTo) {
-    console.error(`Discord channel not available${channelId ? ` for ${channelId}` : ''}`);
+    console.error(`Discord 频道不可用${channelId ? ` (${channelId})` : ""}`);
     return null;
   }
 
@@ -75,7 +75,7 @@ export async function sendToDiscord(tweet: ProcessedTweet, channelId?: string, a
                 const attachment = new AttachmentBuilder(buf, { name: `tweet_${tweet.id}.png` });
         const embed = new EmbedBuilder()
           .setAuthor({ name: `@${tweet.author}`, url: `https://x.com/${tweet.author}` })
-          .setDescription(`[🔗 View on X](${tweet.url})`)
+          .setDescription(`[🔗 在 X 上查看](${tweet.url})`)
           .setURL(tweet.url)
           .setImage(`attachment://tweet_${tweet.id}.png`)
           .setColor((config.discord.embedColor || '#1DA1F2') as `#${string}`)
@@ -83,7 +83,7 @@ export async function sendToDiscord(tweet: ProcessedTweet, channelId?: string, a
 
         sentMessage = await sendTo.send({ embeds: [embed], files: [attachment] });
         storeSentMessage(sendTo.id, sentMessage.id, tweet.id);
-        console.log(`Sent tweet ${tweet.id} as image to Discord${channelId ? ` (${channelId})` : ''}`);
+        console.log(`[Discord] 以图片形式发送推文 ${tweet.id}${channelId ? ` (${channelId})` : ""}`);
         return sentMessage;
       }
     }
@@ -99,14 +99,14 @@ export async function sendToDiscord(tweet: ProcessedTweet, channelId?: string, a
       embed.setImage(tweet.mediaUrls[0]);
     }
 
-    embed.setFooter({ text: `${tweet.mediaUrls.length} media attachment(s)` });
+    embed.setFooter({ text: `${tweet.mediaUrls.length} 个媒体附件` });
 
     sentMessage = await sendTo.send({ embeds: [embed] });
     storeSentMessage(sendTo.id, sentMessage.id, tweet.id);
-    console.log(`Sent tweet ${tweet.id} to Discord${channelId ? ` (${channelId})` : ''}`);
+    console.log(`[Discord] 发送推文 ${tweet.id}${channelId ? ` (${channelId})` : ""}`);
     return sentMessage;
   } catch (error) {
-    console.error(`Failed to send tweet ${tweet.id} to Discord:`, error);
+    console.error(`[Discord] 发送推文 ${tweet.id} 失败:`, error);
     return null;
   }
 }
@@ -224,9 +224,9 @@ export async function registerDiscordCommands(): Promise<void> {
       { body: commands }
     );
 
-    console.log('Discord slash commands registered');
+    console.log('Discord 斜杠命令已注册');
   } catch (error) {
-    console.error('Failed to register Discord commands:', error);
+    console.error('Discord 命令注册失败:', error);
   }
 }
 
@@ -235,6 +235,6 @@ export async function shutdownDiscord(): Promise<void> {
     await client.destroy();
     client = null;
     targetChannel = null;
-    console.log('Discord bot disconnected');
+    console.log('Discord bot 已断开');
   }
 }

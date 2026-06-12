@@ -27,7 +27,7 @@ async function processAndSendTweets(username: string, tweets: Tweet[]): Promise<
   }
 
   if (!userConfig) {
-    console.warn(`No config found for user @${username}`);
+    console.warn(`未找到用户 @${username} 的配置`);
     return;
   }
 
@@ -38,7 +38,7 @@ async function processAndSendTweets(username: string, tweets: Tweet[]): Promise<
     return;
   }
 
-  console.log(`Processing ${passed.length} tweets from @${username}`);
+  console.log(`处理 @${username} 的 ${passed.length} 条推文`);
 
   if (config.enableApproval) {
     for (const tweet of passed) {
@@ -62,7 +62,7 @@ async function processAndSendTweets(username: string, tweets: Tweet[]): Promise<
 
 async function pollAndSend(): Promise<void> {
   if (isRunning) {
-    console.log('Previous poll still running, skipping...');
+    console.log('上一轮轮询仍在进行, 跳过...');
     return;
   }
 
@@ -70,7 +70,7 @@ async function pollAndSend(): Promise<void> {
   const startTime = Date.now();
 
   try {
-    console.log(`\n[${new Date().toISOString()}] Starting poll...`);
+    console.log(`\n[${new Date().toISOString()}] 开始轮询...`);
 
     cleanupExpiredImages(getConfig().imageCacheTtlMinutes);
     cleanupExpiredApprovals(60);
@@ -88,22 +88,22 @@ async function pollAndSend(): Promise<void> {
     }
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
-    console.log(`Poll completed in ${elapsed}s`);
+    console.log(`轮询完成, 耗时 ${elapsed}s`);
   } catch (error) {
-    console.error('Error during poll:', error);
+    console.error('轮询出错:', error);
   } finally {
     isRunning = false;
   }
 }
 
 async function start(): Promise<void> {
-  console.log('=== X/Twitter Monitor Bot ===\n');
+  console.log('=== X/Twitter 监控 Bot ===\n');
 
   try {
     loadConfig();
-    console.log('Configuration loaded');
+    console.log('配置已加载');
   } catch (error) {
-    console.error('Failed to load configuration:', error);
+    console.error('配置加载失败:', error);
     process.exit(1);
   }
 
@@ -113,30 +113,30 @@ async function start(): Promise<void> {
   const config = getConfig();
 
   if (config.sendAsImage) {
-    console.log('Initializing image renderer...');
+    console.log('正在初始化图片渲染器...');
     const rendererReady = await initRenderer();
     if (!rendererReady) {
-      console.warn('Image renderer failed to initialize, will send as text');
+      console.warn('图片渲染器初始化失败, 将以文本形式发送');
     }
   }
 
-  console.log('Initializing Twitter client...');
+  console.log('正在初始化 Twitter 客户端...');
   let twitterReady = await initTwitterClient();
 
   if (!twitterReady && config.twitter.username && config.twitter.password) {
-    console.log('Cookies not valid, attempting login with credentials...');
+    console.log('Cookie 无效, 尝试使用凭据登录...');
     try {
       const result = await loginWithCredentials();
       config.twitter.authToken = result.authToken;
       config.twitter.ct0 = result.ct0;
       twitterReady = await initTwitterClient();
     } catch (error) {
-      console.error('Login failed:', error);
+      console.error('登录失败:', error);
     }
   }
 
   if (!twitterReady) {
-    console.error('Twitter client failed to initialize. Exiting.');
+    console.error('Twitter 客户端初始化失败, 退出程序.');
     process.exit(1);
   }
 
@@ -146,14 +146,14 @@ async function start(): Promise<void> {
   if (config.discord.enabled) {
     discordReady = await initDiscord();
     if (!discordReady) {
-      console.warn('Discord initialization failed');
+      console.warn('Discord 初始化失败');
     }
   }
 
   if (config.telegram.enabled) {
     telegramReady = await initTelegram();
     if (!telegramReady) {
-      console.warn('Telegram initialization failed');
+      console.warn('Telegram 初始化失败');
     } else {
       const telegramBot = getTelegramBot();
       if (telegramBot) {
@@ -165,7 +165,7 @@ async function start(): Promise<void> {
         telegramBot.action(/^recall_/, handleTelegramRecall);
         
         telegramBot.launch();
-        console.log('Telegram bot launched with approval handlers');
+        console.log('Telegram bot 已启动, 审批处理器已注册');
       }
     }
   }
@@ -198,12 +198,12 @@ async function start(): Promise<void> {
           await handleDiscordApproval(interaction);
         }
       });
-      console.log('Discord approval handlers registered');
+      console.log('Discord 审批处理器已注册');
     }
   }
 
   if (config.discord.enabled && !discordReady && config.telegram.enabled && !telegramReady) {
-    console.error('Both Discord and Telegram failed to initialize. Exiting.');
+    console.error('Discord 和 Telegram 均初始化失败, 退出程序.');
     process.exit(1);
   }
 
@@ -215,24 +215,24 @@ async function start(): Promise<void> {
     }
   }
 
-  console.log(`\nMonitoring ${uniqueUsers.size} users:`);
+  console.log(`\n正在监控 ${uniqueUsers.size} 个用户:`);
   for (const username of uniqueUsers.keys()) {
     console.log(`  - @${username}`);
   }
 
-  console.log(`\nPoll interval: ${config.pollIntervalMinutes} minute(s)`);
+  console.log(`\n轮询间隔: ${config.pollIntervalMinutes} 分钟`);
   webServer = startWebServer();
-  console.log('Starting initial poll...\n');
+  console.log('开始首次轮询...\n');
 
   await pollAndSend();
 
   const cronExpression = `*/${config.pollIntervalMinutes} * * * *`;
   cronJob = cron.schedule(cronExpression, pollAndSend);
-  console.log(`Cron job scheduled: ${cronExpression}`);
+  console.log(`定时任务已设置: ${cronExpression}`);
 }
 
 async function shutdown(): Promise<void> {
-  console.log('\nShutting down...');
+  console.log('\n正在关闭...');
 
   if (cronJob) {
     cronJob.stop();
@@ -249,7 +249,7 @@ async function shutdown(): Promise<void> {
   await shutdownRenderer();
   closeDatabase();
 
-  console.log('Shutdown complete');
+  console.log('关闭完成');
   process.exit(0);
 }
 
@@ -257,6 +257,6 @@ process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
 start().catch((error) => {
-  console.error('Fatal error:', error);
+  console.error('致命错误:', error);
   process.exit(1);
 });

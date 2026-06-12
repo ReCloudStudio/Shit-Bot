@@ -16,12 +16,12 @@ export function applyFilters(tweet: Tweet, userConfig: UserConfig): ProcessedTwe
 
   if (filters.excludeRetweets && tweet.isRetweet) {
     passed = false;
-    reasons.push('Is a retweet');
+    reasons.push('是转推');
   }
 
   if (filters.excludeReplies && tweet.isReply) {
     passed = false;
-    reasons.push('Is a reply');
+    reasons.push('是回复');
   }
 
   if (filters.keywords) {
@@ -33,7 +33,7 @@ export function applyFilters(tweet: Tweet, userConfig: UserConfig): ProcessedTwe
       );
       if (!hasIncludedKeyword) {
         passed = false;
-        reasons.push('Missing required keywords');
+        reasons.push('缺少必要关键词');
       }
     }
 
@@ -43,14 +43,14 @@ export function applyFilters(tweet: Tweet, userConfig: UserConfig): ProcessedTwe
       );
       if (hasExcludedKeyword) {
         passed = false;
-        reasons.push('Contains excluded keywords');
+        reasons.push('包含排除关键词');
       }
     }
   }
 
   if (filters.media?.requireMedia && tweet.mediaUrls.length === 0) {
     passed = false;
-    reasons.push('No media attached');
+    reasons.push('无媒体附件');
   }
 
   return {
@@ -76,29 +76,29 @@ export function formatTweetMessage(tweet: ProcessedTweet): string {
   lines.push('');
   lines.push(tweet.content);
   lines.push('');
-  lines.push(`🔗 ${tweet.url}`);
-  lines.push(`📅 ${tweet.publishedAt.toLocaleString()}`);
+    lines.push(`🔗 ${tweet.url}`);
+    lines.push(`📅 ${tweet.publishedAt.toLocaleString()}`);
 
-  if (tweet.mediaUrls.length > 0) {
-    lines.push(`📎 ${tweet.mediaUrls.length} media attachment(s)`);
+    if (tweet.mediaUrls.length > 0) {
+      lines.push(`📎 ${tweet.mediaUrls.length} 个媒体附件`);
+    }
+
+    return lines.join('\n');
   }
 
-  return lines.join('\n');
-}
+  export function formatTweetHTML(tweet: ProcessedTweet): string {
+    const lines: string[] = [];
 
-export function formatTweetHTML(tweet: ProcessedTweet): string {
-  const lines: string[] = [];
+    lines.push(`<b>🐦 @${escapeHTML(tweet.author)}</b> (${escapeHTML(tweet.authorName)})`);
+    lines.push('');
+    lines.push(formatContentHTML(tweet.content));
+    lines.push('');
+    lines.push(`<a href="${tweet.url}">🔗 在 X 上查看</a>`);
+    lines.push(`📅 ${tweet.publishedAt.toLocaleString()}`);
 
-  lines.push(`<b>🐦 @${escapeHTML(tweet.author)}</b> (${escapeHTML(tweet.authorName)})`);
-  lines.push('');
-  lines.push(formatContentHTML(tweet.content));
-  lines.push('');
-  lines.push(`<a href="${tweet.url}">🔗 View on X</a>`);
-  lines.push(`📅 ${tweet.publishedAt.toLocaleString()}`);
-
-  if (tweet.mediaUrls.length > 0) {
-    lines.push(`📎 ${tweet.mediaUrls.length} media attachment(s)`);
-  }
+    if (tweet.mediaUrls.length > 0) {
+      lines.push(`📎 ${tweet.mediaUrls.length} 个媒体附件`);
+    }
 
   return lines.join('\n');
 }
@@ -110,7 +110,7 @@ function formatContentHTML(content: string): string {
     /https?:\/\/t\.co\/\w+/g,
     (url) => {
       const idx = placeholderMap.length;
-      placeholderMap.push(`<a href="${url}">🔗 Link</a>`);
+      placeholderMap.push(`<a href="${url}">🔗 链接</a>`);
       return `__TCO_PH_${idx}__`;
     }
   );
@@ -127,7 +127,7 @@ function formatContentHTML(content: string): string {
 function formatContentDiscord(content: string): string {
   return content.replace(
     /https?:\/\/t\.co\/\w+/g,
-    (url) => `[🔗 Link](${url})`
+    (url) => `[🔗 链接](${url})`
   );
 }
 

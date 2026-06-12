@@ -5,9 +5,9 @@ import { fetchTweetImage } from './xToImageApi';
 export async function initRenderer(): Promise<boolean> {
   const config = getConfig();
   if (config.xToImageApiUrl) {
-    console.log(`X to Image API configured: ${config.xToImageApiUrl}`);
+    console.log(`X to Image API 已配置: ${config.xToImageApiUrl}`);
   } else {
-    console.log('No X to Image API configured, image rendering disabled');
+    console.log('未配置 X to Image API, 图片渲染已禁用');
   }
   return true;
 }
@@ -23,5 +23,5 @@ export async function renderTweetImage(tweet: ProcessedTweet): Promise<Buffer | 
 }
 
 export async function shutdownRenderer(): Promise<void> {
-  console.log('Renderer shutdown');
+  console.log('渲染器已关闭');
 }

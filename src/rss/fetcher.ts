@@ -24,7 +24,7 @@ export async function fetchTweetsForUser(user: UserConfig): Promise<Tweet[]> {
 
     return filteredTweets;
   } catch (error) {
-    console.error(`Error fetching tweets for @${user.username}:`, error);
+    console.error(`获取 @${user.username} 的推文失败:`, error);
     return [];
   }
 }

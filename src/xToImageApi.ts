@@ -14,7 +14,7 @@ async function fetchWithRetry(url: string, headers: Record<string, string>, twee
     } catch (error) {
       lastError = error;
       if (attempt < MAX_RETRIES) {
-        console.warn(`X to Image API attempt ${attempt + 1} failed for ${tweetId}, retrying in ${RETRY_DELAYS[attempt]}ms...`);
+        console.warn(`X to Image API 第 ${attempt + 1} 次尝试失败, 推文 ${tweetId}, ${RETRY_DELAYS[attempt]}ms 后重试...`);
         await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[attempt]));
       }
     }
@@ -43,14 +43,14 @@ export async function fetchTweetImage(tweet: ProcessedTweet): Promise<Buffer | n
     const response = await fetchWithRetry(url.toString(), headers, tweet.id);
 
     if (!response.ok) {
-      console.error(`X to Image API returned ${response.status}: ${response.statusText}`);
+      console.error(`X to Image API 返回 ${response.status}: ${response.statusText}`);
       return null;
     }
 
     const arrayBuffer = await response.arrayBuffer();
     return Buffer.from(arrayBuffer);
   } catch (error) {
-    console.error(`Failed to fetch tweet image from X to Image API for ${tweet.id}:`, error);
+    console.error(`从 X to Image API 获取图片失败, 推文 ${tweet.id}:`, error);
     return null;
   }
 }
