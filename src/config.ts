@@ -85,6 +85,15 @@ export function loadConfig(configPath?: string): AppConfig {
       email: process.env.TWITTER_EMAIL || rawConfig.twitter?.email,
       totpSecret: process.env.TWITTER_TOTP_SECRET || rawConfig.twitter?.totpSecret,
     },
+    ai: {
+      enabled: rawConfig.ai?.enabled ?? false,
+      apiUrl: process.env.AI_API_URL || rawConfig.ai?.apiUrl || 'https://api.openai.com/v1',
+      apiKey: process.env.AI_API_KEY || rawConfig.ai?.apiKey || '',
+      model: rawConfig.ai?.model || 'gpt-3.5-turbo',
+      systemPrompt: rawConfig.ai?.systemPrompt || '你是一个有帮助的助手。',
+      maxTokens: rawConfig.ai?.maxTokens ?? 1024,
+      temperature: rawConfig.ai?.temperature ?? 0.7,
+    },
     webui: {
       enabled: rawConfig.webui?.enabled ?? true,
       port: rawConfig.webui?.port ?? 3000,
@@ -170,6 +179,19 @@ function validateConfig(cfg: AppConfig): void {
     cfg.imageCacheTtlMinutes = 60;
   }
 
+  if (cfg.ai.enabled) {
+    if (!cfg.ai.apiKey) {
+      console.warn('AI 聊天已启用但未配置 API Key，将禁用 AI 聊天');
+      cfg.ai.enabled = false;
+    }
+    if (!cfg.ai.apiUrl) {
+      cfg.ai.apiUrl = 'https://api.openai.com/v1';
+    }
+    if (!cfg.ai.model) {
+      cfg.ai.model = 'gpt-3.5-turbo';
+    }
+  }
+
   if (cfg.enableApproval) {
     const hasGroupAdmins = cfg.groups?.some(g =>
       (g.telegram && g.approval?.telegramAdminChatIds?.length) ||
@@ -249,6 +271,7 @@ export function saveConfig(newConfig: AppConfig): void {
   rawConfigData.telegram = newConfig.telegram;
   rawConfigData.twitter = newConfig.twitter;
   rawConfigData.webui = newConfig.webui;
+  rawConfigData.ai = newConfig.ai;
   rawConfigData.enableApproval = newConfig.enableApproval;
   rawConfigData.sendAsImage = newConfig.sendAsImage;
   rawConfigData.xToImageApiUrl = newConfig.xToImageApiUrl;

@@ -60,6 +60,7 @@ function sanitizeConfigForAPI(cfg: AppConfig): any {
       totpSecret: cfg.twitter.totpSecret ? '••••••••' : '',
     },
     webui: { ...cfg.webui, password: cfg.webui.password ? '••••••••' : '' },
+    ai: { ...cfg.ai, apiKey: cfg.ai.apiKey ? '••••••••' : '' },
     enableApproval: cfg.enableApproval,
     sendAsImage: cfg.sendAsImage,
     xToImageApiUrl: cfg.xToImageApiUrl,
@@ -139,6 +140,10 @@ async function handleAPI(req: IncomingMessage, res: http.ServerResponse, urlPath
       if (body.webui !== undefined) {
         cfg.webui = { ...cfg.webui, ...body.webui };
         if (body.webui.password && body.webui.password !== '••••••••') cfg.webui.password = body.webui.password;
+      }
+      if (body.ai !== undefined) {
+        cfg.ai = { ...cfg.ai, ...body.ai };
+        if (body.ai.apiKey && body.ai.apiKey !== '••••••••') cfg.ai.apiKey = body.ai.apiKey;
       }
       if (body.enableApproval !== undefined) cfg.enableApproval = body.enableApproval;
       if (body.sendAsImage !== undefined) cfg.sendAsImage = body.sendAsImage;

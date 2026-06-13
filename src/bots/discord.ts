@@ -4,6 +4,7 @@ import { getConfig } from '../config';
 import { formatContentForPlatform } from '../filters';
 import { renderTweetImage } from '../renderer';
 import { storeSentMessage, getRecentSentMessages, deleteSentMessage, getSentMessageByMessageId } from '../storage';
+import { chatWithAI, isAiEnabled } from '../ai/chat';
 
 let client: Client | null = null;
 let targetChannel: TextChannel | null = null;
@@ -37,7 +38,7 @@ export async function initDiscord(): Promise<boolean> {
 
   try {
     client = new Client({
-      intents: [GatewayIntentBits.Guilds],
+      intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
     });
 
     await client.login(config.discord.token);
@@ -274,4 +275,78 @@ export async function shutdownDiscord(): Promise<void> {
     targetChannel = null;
     console.log('Discord bot 已断开');
   }
+}
+
+export function initDiscordAiChat(): boolean {
+  if (!client || !isAiEnabled()) {
+    if (client && !isAiEnabled()) {
+      console.log('AI 聊天未启用，跳过 Discord AI 消息监听');
+    }
+    return false;
+  }
+
+  client.on('messageCreate', async (message: Message) => {
+    if (message.author.bot) return;
+    if (!client?.user) return;
+
+    const botMentioned = message.mentions.has(client.user.id);
+
+    if (!botMentioned) return;
+
+    const content = message.content
+      .replace(new RegExp(`<@!?${client.user.id}>`, 'g'), '')
+      .trim();
+
+    if (!content) {
+      try {
+        await message.reply('你好！请 @我 然后输入你的问题，我会尽力回答。');
+      } catch (e) {
+        // ignore
+      }
+      return;
+    }
+
+    try {
+      if (message.channel.isTextBased()) {
+        const channel = message.channel as TextChannel;
+        await channel.sendTyping();
+      }
+    } catch (e) {
+      // some channels may not support typing
+    }
+
+    const aiResponse = await chatWithAI(content, message.author.username);
+
+    const maxLen = 1900;
+    const chunks: string[] = [];
+    let remaining = aiResponse;
+
+    while (remaining.length > 0) {
+      let chunk = remaining.slice(0, maxLen);
+      const lastNewline = chunk.lastIndexOf('\n');
+      if (remaining.length > maxLen && lastNewline > maxLen / 2) {
+        chunk = remaining.slice(0, lastNewline);
+      }
+      chunks.push(chunk);
+      remaining = remaining.slice(chunk.length);
+    }
+
+    try {
+      for (const chunk of chunks) {
+        await message.reply({
+          content: chunk,
+          allowedMentions: { repliedUser: false },
+        });
+        if (chunks.length > 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+      console.log(`[AI] 回复 ${message.author.username} (${message.content.slice(0, 50)}...)`);
+    } catch (error) {
+      console.error('Discord AI 回复发送失败:', error);
+    }
+  });
+
+  console.log('Discord AI 聊天监听器已注册');
+  return true;
 }

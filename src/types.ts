@@ -63,6 +63,16 @@ export interface TwitterConfig {
   totpSecret?: string;
 }
 
+export interface AIConfig {
+  enabled: boolean;
+  apiUrl: string;
+  apiKey: string;
+  model: string;
+  systemPrompt: string;
+  maxTokens: number;
+  temperature: number;
+}
+
 export interface WebUIConfig {
   enabled: boolean;
   port: number;
@@ -76,6 +86,7 @@ export interface AppConfig {
   telegram: TelegramConfig;
   twitter: TwitterConfig;
   webui: WebUIConfig;
+  ai: AIConfig;
   enableApproval: boolean;
   sendAsImage: boolean;
   xToImageApiUrl?: string;
