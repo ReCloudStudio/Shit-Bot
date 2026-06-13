@@ -15,7 +15,7 @@ export function isAiEnabled(): boolean {
   return getConfig().ai.enabled;
 }
 
-export async function chatWithAI(userMessage: string, username?: string): Promise<string> {
+export async function chatWithAI(userMessage: string, username?: string, contextMessage?: string): Promise<string> {
   const cfg = getConfig().ai;
 
   if (!cfg.enabled || !cfg.apiKey) {
@@ -26,11 +26,13 @@ export async function chatWithAI(userMessage: string, username?: string): Promis
     { role: 'system', content: cfg.systemPrompt },
   ];
 
-  if (username) {
-    messages.push({ role: 'user', content: `[用户 ${username}]: ${userMessage}` });
-  } else {
-    messages.push({ role: 'user', content: userMessage });
+  let prompt = username ? `[用户 ${username}]: ${userMessage}` : userMessage;
+
+  if (contextMessage) {
+    prompt = `[引用的消息内容]:\n${contextMessage}\n\n[用户的问题]:\n${prompt}`;
   }
+
+  messages.push({ role: 'user', content: prompt });
 
   try {
     const controller = new AbortController();

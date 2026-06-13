@@ -306,6 +306,26 @@ export function initDiscordAiChat(): boolean {
       return;
     }
 
+    let contextMessage: string | undefined;
+    if (message.reference?.messageId) {
+      try {
+        if (message.channel.isTextBased()) {
+          const refMsg = await message.channel.messages.fetch(message.reference.messageId);
+          if (refMsg) {
+            const refAuthor = refMsg.author.username;
+            const refContent = refMsg.content.slice(0, 2000);
+            contextMessage = `[${refAuthor}]: ${refContent}`;
+          }
+        }
+      } catch (e) {
+        // fetch failed (deleted message, no permission, etc.)
+      }
+    }
+
+    if (contextMessage) {
+      console.log(`[AI] 带上下文回复 ${message.author.username} (引用: ${contextMessage.slice(0, 40)}...)`);
+    }
+
     try {
       if (message.channel.isTextBased()) {
         const channel = message.channel as TextChannel;
@@ -315,7 +335,7 @@ export function initDiscordAiChat(): boolean {
       // some channels may not support typing
     }
 
-    const aiResponse = await chatWithAI(content, message.author.username);
+    const aiResponse = await chatWithAI(content, message.author.username, contextMessage);
 
     const maxLen = 1900;
     const chunks: string[] = [];
