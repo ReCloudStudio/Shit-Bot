@@ -26,13 +26,13 @@ export async function chatWithAI(userMessage: string, username?: string, context
     { role: 'system', content: cfg.systemPrompt },
   ];
 
-  let prompt = username ? `[用户 ${username}]: ${userMessage}` : userMessage;
-
   if (contextMessage) {
-    prompt = `[引用的消息内容]:\n${contextMessage}\n\n[用户的问题]:\n${prompt}`;
+    messages.push({ role: 'user', content: `以下是被引用的消息内容:\n${contextMessage}` });
   }
 
-  messages.push({ role: 'user', content: prompt });
+  messages.push({ role: 'user', content: username ? `[用户 ${username}]: ${userMessage}` : userMessage });
+
+  console.log(`[AI] 发送请求: model=${cfg.model}, messages=${messages.length}, tokens≈${messages.reduce((s, m) => s + m.content.length, 0)}`);
 
   try {
     const controller = new AbortController();

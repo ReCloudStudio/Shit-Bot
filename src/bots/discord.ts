@@ -312,14 +312,17 @@ export function initDiscordAiChat(): boolean {
         if (message.channel.isTextBased()) {
           const refMsg = await message.channel.messages.fetch(message.reference.messageId);
           if (refMsg) {
-            const refAuthor = refMsg.author.username;
+            const refAuthor = refMsg.member?.displayName || refMsg.author.username;
             const refContent = refMsg.content.slice(0, 2000);
             contextMessage = `[${refAuthor}]: ${refContent}`;
+            console.log(`[AI] 获取到引用消息 (${refAuthor}): ${refContent.slice(0, 80)}...`);
           }
         }
       } catch (e) {
-        // fetch failed (deleted message, no permission, etc.)
+        console.error(`[AI] 获取引用消息失败 (messageId=${message.reference.messageId}):`, (e as Error).message);
       }
+    } else if (message.reference) {
+      console.warn(`[AI] 检测到 message.reference 但无 messageId:`, JSON.stringify(message.reference));
     }
 
     if (contextMessage) {
@@ -335,7 +338,8 @@ export function initDiscordAiChat(): boolean {
       // some channels may not support typing
     }
 
-    const aiResponse = await chatWithAI(content, message.author.username, contextMessage);
+    const displayName = message.member?.displayName || message.author.username;
+    const aiResponse = await chatWithAI(content, displayName, contextMessage);
 
     const maxLen = 1900;
     const chunks: string[] = [];
