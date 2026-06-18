@@ -29,6 +29,8 @@ import {
   deletePendingApproval,
   markApprovalDone,
   getAllPendingApprovals,
+  getPendingApproval,
+  hasPendingApprovalForTweet,
   storeDeadLetter,
 } from "./storage";
 import { renderTweetImage } from "./renderer";
@@ -99,6 +101,37 @@ export function rehydratePendingApprovals(): number {
   }
 
   return count;
+}
+
+function tryRehydrateApproval(approvalId: string): PendingApproval | undefined {
+  const persisted = getPendingApproval(approvalId);
+  if (!persisted) return undefined;
+
+  try {
+    const tweet = JSON.parse(persisted.tweetJson) as ProcessedTweet;
+    const tgMsgIds: Record<string, number> = JSON.parse(persisted.telegramMsgIds);
+    const dcMsgIds: Record<string, string> = JSON.parse(persisted.discordMsgIds);
+
+    const approval: PendingApproval = {
+      id: persisted.approvalId,
+      groupName: persisted.groupName,
+      tweet,
+      telegramMessageIds: new Map(Object.entries(tgMsgIds)),
+      discordMessageIds: new Map(Object.entries(dcMsgIds)),
+      createdAt: new Date(persisted.createdAt),
+      approved: persisted.approved !== 0,
+      approvedBy: persisted.approvedBy || undefined,
+      sentTo: persisted.sentTo || undefined,
+      hasImage: persisted.hasImage !== 0,
+    };
+
+    pendingApprovals.set(approvalId, approval);
+    console.log(`[恢复] 从数据库按需恢复了审批记录: ${approvalId}`);
+    return approval;
+  } catch (err) {
+    console.error(`[恢复] 按需恢复审批记录失败 ${approvalId}:`, err);
+    return undefined;
+  }
 }
 
 async function retryWithDelay<T>(fn: () => Promise<T>, retries: number = 3, delayMs: number = 2000): Promise<T> {
@@ -275,6 +308,11 @@ export async function sendForApproval(tweet: ProcessedTweet): Promise<boolean> {
       (p) => p.tweet.id === tweet.id && p.groupName === group.name && !p.approved,
     );
     if (alreadyPending) {
+      continue;
+    }
+
+    if (hasPendingApprovalForTweet(tweet.id)) {
+      console.log(`[审批] 跳过重复审批: 推文 ${tweet.id} 已有待审批记录 (群组: ${group.name})`);
       continue;
     }
 
@@ -750,7 +788,11 @@ export async function handleTelegramApproval(ctx: Context): Promise<void> {
     approvalId = data.replace(/^(approve_|reject_)/, "");
   }
 
-  const pending = pendingApprovals.get(approvalId);
+  let pending = pendingApprovals.get(approvalId);
+
+  if (!pending) {
+    pending = tryRehydrateApproval(approvalId);
+  }
 
   if (!pending) {
     try {
@@ -825,7 +867,11 @@ async function handleDiscordApprovalImpl(interaction: ButtonInteraction): Promis
     approvalId = customId.replace(/^(approve_|reject_)/, "");
   }
 
-  const pending = pendingApprovals.get(approvalId);
+  let pending = pendingApprovals.get(approvalId);
+
+  if (!pending) {
+    pending = tryRehydrateApproval(approvalId);
+  }
 
   if (!pending) {
     await interaction.reply({ content: "审批记录未找到或已过期", flags: MessageFlags.Ephemeral });
@@ -1135,7 +1181,11 @@ export async function handleTelegramRecall(ctx: Context): Promise<void> {
   if (!data.startsWith("recall_")) return;
 
   const approvalId = data.replace("recall_", "");
-  const pending = pendingApprovals.get(approvalId);
+  let pending = pendingApprovals.get(approvalId);
+
+  if (!pending) {
+    pending = tryRehydrateApproval(approvalId);
+  }
 
   if (!pending) {
     try {
@@ -1169,9 +1219,13 @@ export async function handleDiscordRecall(interaction: ButtonInteraction): Promi
     if (!customId.startsWith("recall_")) return;
 
     const approvalId = customId.replace("recall_", "");
-    const pending = pendingApprovals.get(approvalId);
+  let pending = pendingApprovals.get(approvalId);
 
-    if (!pending) {
+  if (!pending) {
+    pending = tryRehydrateApproval(approvalId);
+  }
+
+  if (!pending) {
       await interaction.reply({ content: "审批记录未找到或已过期", flags: MessageFlags.Ephemeral });
       return;
     }
