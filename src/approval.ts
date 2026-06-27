@@ -311,7 +311,7 @@ export async function sendForApproval(tweet: ProcessedTweet): Promise<boolean> {
       continue;
     }
 
-    if (hasPendingApprovalForTweet(tweet.id)) {
+    if (hasPendingApprovalForTweet(tweet.id, group.name)) {
       console.log(`[审批] 跳过重复审批: 推文 ${tweet.id} 已有待审批记录 (群组: ${group.name})`);
       continue;
     }

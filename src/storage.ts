@@ -357,8 +357,12 @@ export function getPendingApproval(approvalId: string): PersistedApproval | null
   return (database.query('SELECT * FROM pending_approvals WHERE approval_id = ?').get(approvalId) as PersistedApproval) || null;
 }
 
-export function hasPendingApprovalForTweet(tweetId: string): boolean {
+export function hasPendingApprovalForTweet(tweetId: string, groupName?: string): boolean {
   const database = getDatabase();
+  if (groupName) {
+    const row = database.query('SELECT 1 FROM pending_approvals WHERE tweet_id = ? AND group_name = ? AND approved = 0').get(tweetId, groupName);
+    return !!row;
+  }
   const row = database.query('SELECT 1 FROM pending_approvals WHERE tweet_id = ? AND approved = 0').get(tweetId);
   return !!row;
 }
