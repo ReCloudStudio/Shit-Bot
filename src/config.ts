@@ -28,7 +28,20 @@ let config: AppConfig | null = null;
 let loadedConfigPath: string | null = null;
 let rawConfigData: Record<string, any> | null = null;
 
+const DATA_CONFIG_CANDIDATES = [
+  'data/config.yaml',
+  'data/config.yml',
+  'data/config.toml',
+  'data/config.json',
+];
+
 export function findConfigFile(): string {
+  for (const candidate of DATA_CONFIG_CANDIDATES) {
+    const fullPath = path.join(BASE_DIR, candidate);
+    if (fs.existsSync(fullPath)) {
+      return fullPath;
+    }
+  }
   for (const candidate of CONFIG_CANDIDATES) {
     const fullPath = path.join(BASE_DIR, candidate);
     if (fs.existsSync(fullPath)) {
@@ -314,7 +327,20 @@ export function saveConfig(newConfig: AppConfig): void {
       throw new Error(`不支持的保存配置格式: ${ext}`);
   }
 
-  fs.writeFileSync(loadedConfigPath, content, 'utf-8');
+  try {
+    fs.writeFileSync(loadedConfigPath, content, 'utf-8');
+  } catch (err: any) {
+    if (err.code === 'EROFS') {
+      const fallback = path.join(BASE_DIR, DATA_CONFIG_CANDIDATES[0]);
+      const fallbackDir = path.dirname(fallback);
+      fs.mkdirSync(fallbackDir, { recursive: true });
+      fs.writeFileSync(fallback, content, 'utf-8');
+      loadedConfigPath = fallback;
+      console.log(`配置文件只读, 已保存至 ${fallback}`);
+    } else {
+      throw err;
+    }
+  }
 
   config = newConfig;
   console.log(`配置已保存至 ${loadedConfigPath}`);
