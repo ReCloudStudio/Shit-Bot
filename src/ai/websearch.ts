@@ -254,7 +254,7 @@ export async function webSearch(query: string, maxResults?: number): Promise<Sea
   const provider = cfg?.provider || 'duckduckgo';
   const fallbackMax = cfg?.maxResults ?? 5;
   const reqMax = typeof maxResults === 'number' ? maxResults : parseInt(String(maxResults ?? ''), 10);
-  const max = Math.max(1, Math.min(isFinite(reqMax) ? reqMax : fallbackMax, 10));
+  const max = Math.max(1, Math.min(isFinite(reqMax) ? Math.floor(reqMax) : fallbackMax, 10));
   const apiKey = cfg?.apiKey || '';
   const q = String(query || '').trim();
   if (!q) return [];
