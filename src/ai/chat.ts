@@ -163,7 +163,7 @@ const DISCORD_FORMAT =
 const REACTION_INSTRUCTION =
   '你最终面向用户的回复必须是一个 JSON 对象，且只输出这个 JSON（不要套代码块、不要任何额外文字）：' +
   '{"reply": "<给用户看的话，用 Discord Markdown>", "reactions": ["<表情短码>", ...]}。\n' +
-  '- reply：必填，正文。\n' +
+  '- reply：必填，正文。其中的双引号和换行必须按 JSON 规则转义（写成 \\" 和 \\n），保证整段能被 JSON.parse 解析。\n' +
   '- reactions：表情短码数组（形如 :smile: :tada: :+1:，首尾带冒号）。它只是贴在用户这条消息上的一个轻量"回应信号"，' +
   '就像真人随手点个表情，纯属点缀、完全可有可无。把握这个度，自行体会：\n' +
   '  · 默认就给 []，绝大多数回复都不需要贴；\n' +
@@ -257,6 +257,9 @@ export async function chatWithAI(userMessage: string, ctx?: ChatContext): Promis
     1,
     images.length ? Math.min(cfg.maxToolIterations ?? 5, 3) : cfg.maxToolIterations ?? 5
   );
+  const MAX_TOTAL_IMAGES = 6;
+  const loadedImageUrls = new Set<string>(images);
+  let imagesLoaded = images.length;
   const pendingImages: string[] = [];
   const toolCtx: ToolContext = {
     platform,
@@ -265,7 +268,14 @@ export async function chatWithAI(userMessage: string, ctx?: ChatContext): Promis
     excludeMessageId: ctx?.messageId,
     backfill: ctx?.backfillChannel,
     addImages: (urls) => {
-      pendingImages.push(...urls);
+      for (const u of urls) {
+        if (imagesLoaded >= MAX_TOTAL_IMAGES) break;
+        if (!loadedImageUrls.has(u)) {
+          loadedImageUrls.add(u);
+          pendingImages.push(u);
+          imagesLoaded++;
+        }
+      }
     },
   };
   let useTools = tools.length > 0;
@@ -391,45 +401,58 @@ export async function chatWithAI(userMessage: string, ctx?: ChatContext): Promis
 
     let reply = finalText;
     let reactions: string[] = [];
+    let replyTruncated = finalFinishReason === 'length';
 
     if (reactionsOn && finalText && finalText !== NON_ANSWER) {
-      let parsed = parseReplyJson(finalText);
-      // 非法 JSON 且不是被截断 -> 要求模型重新生成 (最多 2 次)
-      if (!parsed && finalFinishReason !== 'length') {
+      let candidate = finalText;
+      let candidateTruncated = replyTruncated;
+      let parsed = parseReplyJson(candidate);
+
+      // 非法 JSON 且这段不是被截断的 -> 要求模型重新生成 (最多 2 次)
+      if (!parsed && !candidateTruncated) {
         for (let r = 0; r < 2 && !parsed; r++) {
           console.warn('[AI] 最终回复不是合法 JSON，要求重新生成');
           messages.push({
             role: 'user',
             content:
-              '你刚才的回复不是合法 JSON。请只输出 {"reply":"...","reactions":[":short_code:", ...]} 这个 JSON，不要代码块、不要任何额外文字。重新输出。',
+              '你刚才的回复不是合法 JSON。请只输出 {"reply":"...","reactions":[":short_code:", ...]} 这个 JSON，不要代码块、不要额外文字；reply 里的双引号和换行要按 JSON 转义（\\" 与 \\n）。重新输出。',
           });
           try {
             const d = await callApi(messages, tools, false);
-            const t = (d.choices?.[0]?.message?.content || '').trim();
-            messages.push({ role: 'assistant', content: t });
-            finalFinishReason = d.choices?.[0]?.finish_reason || '';
-            parsed = parseReplyJson(t);
+            candidate = (d.choices?.[0]?.message?.content || '').trim();
+            candidateTruncated = (d.choices?.[0]?.finish_reason || '') === 'length';
+            messages.push({ role: 'assistant', content: candidate });
+            parsed = parseReplyJson(candidate);
+            if (!parsed && candidateTruncated) break;
           } catch (e) {
             console.warn('[AI] 重新生成失败:', (e as Error).message);
             break;
           }
         }
       }
+
+      replyTruncated = candidateTruncated;
       if (parsed) {
         reply = parsed.reply;
         reactions = parsed.reactions;
       } else {
-        // 截断或重试仍失败: 尽量从原始内容里抢救出 reply 文本
-        reply = salvageReply(finalText);
+        // 截断或重试仍失败: 从最新这段里抢救 reply 文本
+        reply = salvageReply(candidate);
       }
     }
 
-    if (finalFinishReason === 'length' && reply) {
-      reply += '\n\n（回复因长度上限被截断，可回复"继续"获取后续）';
+    if (!reply.trim()) {
+      reply = NON_ANSWER;
+      replyTruncated = false;
     }
 
-    if (memoryOn && reply && reply !== NON_ANSWER) {
+    // 先把干净文本写进记忆，再给"发送用"的文本加截断提示
+    if (memoryOn && reply !== NON_ANSWER) {
       logConversation(platform, username, 'assistant', reply);
+    }
+
+    if (replyTruncated && reply !== NON_ANSWER) {
+      reply += '\n\n（回复因长度上限被截断，可回复"继续"获取后续）';
     }
 
     return { reply, reactions };

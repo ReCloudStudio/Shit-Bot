@@ -39,7 +39,8 @@ export function resolveReactions(raw: unknown): string[] {
 
 // 从可能被截断的 JSON 里尽量抽出 reply 字段的文本（截断时 JSON 解析不了，用这个兜底）
 export function salvageReply(text: string): string {
-  const m = String(text || '').match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)/);
+  const t = String(text || '');
+  const m = t.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)/);
   if (m) {
     try {
       return JSON.parse('"' + m[1] + '"');
@@ -47,7 +48,8 @@ export function salvageReply(text: string): string {
       return m[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
     }
   }
-  return text;
+  // 没有可抽取的 reply 字段：像 JSON 的残骸(无意义的 {...}) 返回空交给上层兜底，否则当作纯文本
+  return /^\s*[{[]/.test(t) ? '' : t;
 }
 
 export function parseReplyJson(text: string): ReplyPayload | null {
@@ -59,7 +61,7 @@ export function parseReplyJson(text: string): ReplyPayload | null {
   if (start === -1 || end <= start) return null;
   try {
     const obj = JSON.parse(t.slice(start, end + 1));
-    if (typeof obj.reply !== 'string') return null;
+    if (typeof obj.reply !== 'string' || !obj.reply.trim()) return null;
     return { reply: obj.reply, reactions: resolveReactions(obj.reactions) };
   } catch {
     return null;

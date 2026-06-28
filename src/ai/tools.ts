@@ -1,5 +1,5 @@
 import { getConfig } from '../config';
-import { webSearch, fetchUrl } from './websearch';
+import { webSearch, fetchUrl, assertSafeUrl } from './websearch';
 import { recallMemories, saveMemory, updateMemory, deleteMemory } from './memory';
 import { getRecentChannelMessages, formatForSummary } from './summary';
 
@@ -10,32 +10,6 @@ export interface ToolContext {
   excludeMessageId?: string;
   backfill?: (targetTotal: number) => Promise<void>;
   addImages?: (urls: string[]) => void;
-}
-
-function isLocalUrl(raw: string): boolean {
-  try {
-    const u = new URL(raw);
-    const h = u.hostname.replace(/^\[|\]$/g, '').toLowerCase();
-    if (h === 'localhost' || h.endsWith('.local') || h.endsWith('.internal')) return true;
-    const m = h.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
-    if (m) {
-      const a = Number(m[1]);
-      const b = Number(m[2]);
-      if (
-        a === 0 || a === 10 || a === 127 ||
-        (a === 169 && b === 254) ||
-        (a === 172 && b >= 16 && b <= 31) ||
-        (a === 192 && b === 168) ||
-        (a === 100 && b >= 64 && b <= 127)
-      ) {
-        return true;
-      }
-    }
-    if (h === '::1' || h.startsWith('fc') || h.startsWith('fd') || h.startsWith('fe80')) return true;
-    return false;
-  } catch {
-    return true;
-  }
 }
 
 export interface OpenAITool {
@@ -241,9 +215,18 @@ export async function executeTool(
           : args.url
             ? [args.url]
             : [];
-        const valid = list
-          .filter((u): u is string => typeof u === 'string' && /^https?:\/\//i.test(u) && !isLocalUrl(u))
+        const candidates = list
+          .filter((u): u is string => typeof u === 'string' && /^https?:\/\//i.test(u))
           .slice(0, 6);
+        const valid: string[] = [];
+        for (const u of candidates) {
+          try {
+            await assertSafeUrl(u);
+            valid.push(u);
+          } catch {
+            // 跳过内网/私网/元数据等不安全链接
+          }
+        }
         if (valid.length === 0) return '没有有效的图片链接(需 http(s) 公网直链)。';
         ctx.addImages(valid);
         return `已加载 ${valid.length} 张图片到上下文，请查看后回答。`;

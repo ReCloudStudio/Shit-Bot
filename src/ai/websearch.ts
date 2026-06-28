@@ -48,7 +48,7 @@ function ipBlocked(ip: string): boolean {
   return false;
 }
 
-async function assertSafeUrl(rawUrl: string): Promise<void> {
+export async function assertSafeUrl(rawUrl: string): Promise<void> {
   const u = new URL(rawUrl);
   if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error('仅支持 http(s) 链接');
   if (u.port && u.port !== '80' && u.port !== '443') throw new Error('不允许的端口');
