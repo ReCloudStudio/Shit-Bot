@@ -200,7 +200,7 @@ export async function executeTool(
         let msgs = getRecentChannelMessages(ctx.platform, ctx.channelId, count, ctx.excludeMessageId);
         if (msgs.length < count && ctx.backfill) {
           try {
-            await ctx.backfill(count + (ctx.excludeMessageId ? 1 : 0));
+            await ctx.backfill(Math.min(count + (ctx.excludeMessageId ? 1 : 0), maxC));
           } catch (e) {
             console.warn('[AI] 频道历史补全失败:', (e as Error).message);
           }
