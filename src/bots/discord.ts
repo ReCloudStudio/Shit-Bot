@@ -1,10 +1,12 @@
-import { Client, GatewayIntentBits, TextChannel, EmbedBuilder, AttachmentBuilder, Message, REST, Routes } from 'discord.js';
+import { Client, GatewayIntentBits, TextChannel, EmbedBuilder, AttachmentBuilder, Message, REST, Routes, ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { ProcessedTweet } from '../types';
 import { getConfig } from '../config';
 import { formatContentForPlatform } from '../filters';
 import { renderTweetImage } from '../renderer';
 import { storeSentMessage, getRecentSentMessages, deleteSentMessage, getSentMessageByMessageId } from '../storage';
 import { chatWithAI, isAiEnabled } from '../ai/chat';
+import { listMemories, deleteMemory } from '../ai/memory';
+import { recordChannelMessage, getChannelMessageCount, getOldestStoredMessageId } from '../ai/summary';
 
 let client: Client | null = null;
 let targetChannel: TextChannel | null = null;
@@ -264,6 +266,22 @@ export async function registerDiscordCommands(): Promise<void> {
         name: '撤回消息',
         type: 3,
       },
+      {
+        name: 'memory',
+        description: '查看 AI 对你的全部记忆',
+      },
+      {
+        name: 'delete-memory',
+        description: '直接删除指定 key 的记忆 (不经过 AI)',
+        options: [
+          {
+            name: 'key',
+            description: '要删除的记忆键 (可用 /memory 查看)',
+            type: 3,
+            required: true,
+          },
+        ],
+      },
     ];
 
     await rest.put(
@@ -275,6 +293,29 @@ export async function registerDiscordCommands(): Promise<void> {
   } catch (error) {
     console.error('Discord 命令注册失败:', error);
   }
+}
+
+export async function handleMemoryCommand(interaction: ChatInputCommandInteraction): Promise<void> {
+  const username = interaction.user.username;
+  const mems = listMemories('discord', username);
+  if (mems.length === 0) {
+    await interaction.reply({ content: '你还没有任何记忆。', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  const lines = mems.map((m) => `key: ${m.key}，value: ${m.value}`);
+  let body = `共 ${mems.length} 条记忆：\n` + lines.join('\n');
+  if (body.length > 1900) body = body.slice(0, 1900) + '\n…（过长已截断）';
+  await interaction.reply({ content: body, flags: MessageFlags.Ephemeral });
+}
+
+export async function handleDeleteMemoryCommand(interaction: ChatInputCommandInteraction): Promise<void> {
+  const username = interaction.user.username;
+  const key = interaction.options.getString('key', true);
+  const ok = deleteMemory('discord', username, key);
+  await interaction.reply({
+    content: ok ? `已删除记忆：${key}` : `没有找到记忆：${key}（可用 /memory 查看现有键）`,
+    flags: MessageFlags.Ephemeral,
+  });
 }
 
 export async function shutdownDiscord(): Promise<void> {
@@ -298,17 +339,19 @@ export function initDiscordAiChat(): boolean {
     if (message.author.bot) return;
     if (!client?.user) return;
 
-    const botMentioned = message.mentions.has(client.user.id);
+    const guildAllowed = isAiAllowedGuild(message.guildId);
 
+    if (guildAllowed && message.channel.isTextBased()) {
+      const author = message.member?.displayName || message.author.username;
+      recordChannelMessage('discord', message.channelId, message.id, author, message.cleanContent, message.createdTimestamp);
+    }
+
+    const botMentioned = message.mentions.has(client.user.id);
     if (!botMentioned) return;
 
-    const allowedGuilds = getConfig().ai.allowedGuildIds;
-    if (allowedGuilds && allowedGuilds.length > 0) {
-      const guildId = message.guildId;
-      if (!guildId || !allowedGuilds.map(String).includes(guildId)) {
-        console.log(`[AI] 服务器 ${guildId || 'DM'} 不在 AI 允许列表中，跳过`);
-        return;
-      }
+    if (!guildAllowed) {
+      console.log(`[AI] 服务器 ${message.guildId || 'DM'} 不在 AI 允许列表中，跳过`);
+      return;
     }
 
     const content = message.content
@@ -347,48 +390,115 @@ export function initDiscordAiChat(): boolean {
       console.log(`[AI] 带上下文回复 ${message.author.username} (引用: ${contextMessage.slice(0, 40)}...)`);
     }
 
-    try {
-      if (message.channel.isTextBased()) {
-        const channel = message.channel as TextChannel;
-        await channel.sendTyping();
-      }
-    } catch (e) {
-      // some channels may not support typing
-    }
-
     const displayName = message.member?.displayName || message.author.username;
-    const aiResponse = await chatWithAI(content, displayName, contextMessage);
+    const summaryEnabled = !!getConfig().ai.summary?.enabled;
+    const channel = message.channel;
 
-    const maxLen = 1900;
-    const chunks: string[] = [];
-    let remaining = aiResponse;
+    const stopTyping = channel.isTextBased() ? startTyping(channel as TextChannel) : () => {};
 
-    while (remaining.length > 0) {
-      let chunk = remaining.slice(0, maxLen);
-      const lastNewline = chunk.lastIndexOf('\n');
-      if (remaining.length > maxLen && lastNewline > maxLen / 2) {
-        chunk = remaining.slice(0, lastNewline);
-      }
-      chunks.push(chunk);
-      remaining = remaining.slice(chunk.length);
-    }
-
+    let aiResponse: string;
     try {
-      for (const chunk of chunks) {
-        await message.reply({
-          content: chunk,
-          allowedMentions: { repliedUser: false },
-        });
-        if (chunks.length > 1) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-      }
-      console.log(`[AI] 回复 ${message.author.username} (${message.content.slice(0, 50)}...)`);
-    } catch (error) {
-      console.error('Discord AI 回复发送失败:', error);
+      aiResponse = await chatWithAI(content, {
+        username: message.author.username,
+        displayName,
+        contextMessage,
+        platform: 'discord',
+        channelId: message.channelId,
+        messageId: message.id,
+        backfillChannel: summaryEnabled && channel.isTextBased()
+          ? (target: number) => backfillChannelHistory(channel as TextChannel, message.channelId, target)
+          : undefined,
+      });
+    } finally {
+      stopTyping();
     }
+
+    await sendChunkedReply(message, aiResponse);
+    console.log(`[AI] 回复 ${message.author.username}: ${aiResponse.slice(0, 60).replace(/\s+/g, ' ')}...`);
   });
 
   console.log('Discord AI 聊天监听器已注册');
   return true;
+}
+
+function isAiAllowedGuild(guildId: string | null): boolean {
+  const allowed = getConfig().ai.allowedGuildIds;
+  if (!allowed || allowed.length === 0) return true;
+  return !!guildId && allowed.map(String).includes(guildId);
+}
+
+const exhaustedChannels = new Set<string>();
+
+async function backfillChannelHistory(
+  channel: TextChannel,
+  channelId: string,
+  targetTotal: number
+): Promise<void> {
+  let have = getChannelMessageCount('discord', channelId);
+  if (have >= targetTotal) return;
+  if (exhaustedChannels.has(channelId)) return;
+
+  let before = getOldestStoredMessageId('discord', channelId) || undefined;
+  let guard = 0;
+
+  while (have < targetTotal && guard < 40) {
+    const batch = await channel.messages.fetch({ limit: 100, before });
+    if (batch.size === 0) {
+      exhaustedChannels.add(channelId);
+      break;
+    }
+
+    const arr = [...batch.values()];
+    for (const m of arr) {
+      if (m.author.bot) continue;
+      const author = m.member?.displayName || m.author.username;
+      recordChannelMessage('discord', channelId, m.id, author, m.cleanContent, m.createdTimestamp);
+    }
+    before = arr[arr.length - 1].id;
+    have = getChannelMessageCount('discord', channelId);
+    guard++;
+
+    if (batch.size < 100) {
+      exhaustedChannels.add(channelId);
+      break;
+    }
+  }
+
+  console.log(`[AI] 频道 ${channelId} 历史补全至 ${have} 条 (目标 ${targetTotal})`);
+}
+
+function startTyping(channel: TextChannel): () => void {
+  const send = () => {
+    channel.sendTyping().catch(() => {});
+  };
+  send();
+  const timer = setInterval(send, 8000);
+  return () => clearInterval(timer);
+}
+
+async function sendChunkedReply(message: Message, text: string): Promise<void> {
+  const maxLen = 1900;
+  const chunks: string[] = [];
+  let remaining = text;
+
+  while (remaining.length > 0) {
+    let chunk = remaining.slice(0, maxLen);
+    const lastNewline = chunk.lastIndexOf('\n');
+    if (remaining.length > maxLen && lastNewline > maxLen / 2) {
+      chunk = remaining.slice(0, lastNewline);
+    }
+    chunks.push(chunk);
+    remaining = remaining.slice(chunk.length);
+  }
+
+  try {
+    for (const chunk of chunks) {
+      await message.reply({ content: chunk, allowedMentions: { repliedUser: false } });
+      if (chunks.length > 1) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+    }
+  } catch (error) {
+    console.error('Discord AI 回复发送失败:', error);
+  }
 }
