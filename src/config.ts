@@ -5,6 +5,20 @@ import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { parse as parseToml } from 'smol-toml';
 import { AppConfig, GroupConfig } from './types';
 
+/** 把配置里的数值安全转成 [min,max] 内的有限整数；非法(NaN/负数/超大/非数字)时回退默认值。
+ *  防止坏配置(尤其经 WebUI 保存)把 SQLite LIMIT 变成负数=无限读、或让工具循环/各类上限失控。 */
+function clampInt(v: unknown, def: number, min: number, max: number): number {
+  const n = typeof v === 'number' ? v : parseInt(String(v ?? ''), 10);
+  if (!Number.isFinite(n)) return def;
+  return Math.max(min, Math.min(Math.trunc(n), max));
+}
+
+function clampFloat(v: unknown, def: number, min: number, max: number): number {
+  const n = typeof v === 'number' ? v : parseFloat(String(v ?? ''));
+  if (!Number.isFinite(n)) return def;
+  return Math.max(min, Math.min(n, max));
+}
+
 const CONFIG_CANDIDATES = [
   'config.yaml',
   'config.yml',
@@ -105,31 +119,31 @@ export function loadConfig(configPath?: string): AppConfig {
       apiKey: process.env.AI_API_KEY || rawConfig.ai?.apiKey || '',
       model: rawConfig.ai?.model || 'gpt-3.5-turbo',
       systemPrompt: rawConfig.ai?.systemPrompt || '你是一个有帮助的助手。',
-      maxTokens: rawConfig.ai?.maxTokens ?? 1024,
-      temperature: rawConfig.ai?.temperature ?? 0.7,
+      maxTokens: clampInt(rawConfig.ai?.maxTokens, 1024, 1, 32768),
+      temperature: clampFloat(rawConfig.ai?.temperature, 0.7, 0, 2),
       allowedGuildIds: rawConfig.ai?.allowedGuildIds ?? [],
-      maxToolIterations: rawConfig.ai?.maxToolIterations ?? 8,
+      maxToolIterations: clampInt(rawConfig.ai?.maxToolIterations, 8, 1, 30),
       reactions: rawConfig.ai?.reactions ?? true,
       webSearch: {
         enabled: rawConfig.ai?.webSearch?.enabled ?? false,
         provider: rawConfig.ai?.webSearch?.provider || 'duckduckgo',
         apiKey: process.env.AI_WEB_SEARCH_API_KEY || rawConfig.ai?.webSearch?.apiKey || '',
         baseUrl: rawConfig.ai?.webSearch?.baseUrl || '',
-        maxResults: rawConfig.ai?.webSearch?.maxResults ?? 5,
+        maxResults: clampInt(rawConfig.ai?.webSearch?.maxResults, 5, 1, 10),
       },
       memory: {
         enabled: rawConfig.ai?.memory?.enabled ?? false,
-        maxProfileItems: rawConfig.ai?.memory?.maxProfileItems ?? 12,
-        maxProfileChars: rawConfig.ai?.memory?.maxProfileChars ?? 800,
-        recentTurns: rawConfig.ai?.memory?.recentTurns ?? 6,
-        recallLimit: rawConfig.ai?.memory?.recallLimit ?? 8,
+        maxProfileItems: clampInt(rawConfig.ai?.memory?.maxProfileItems, 12, 1, 200),
+        maxProfileChars: clampInt(rawConfig.ai?.memory?.maxProfileChars, 800, 50, 20000),
+        recentTurns: clampInt(rawConfig.ai?.memory?.recentTurns, 6, 0, 100),
+        recallLimit: clampInt(rawConfig.ai?.memory?.recallLimit, 8, 1, 100),
         logConversations: rawConfig.ai?.memory?.logConversations ?? true,
-        maxConversationsPerUser: rawConfig.ai?.memory?.maxConversationsPerUser ?? 500,
+        maxConversationsPerUser: clampInt(rawConfig.ai?.memory?.maxConversationsPerUser, 500, 1, 100000),
       },
       summary: {
         enabled: rawConfig.ai?.summary?.enabled ?? false,
-        maxMessagesPerChannel: rawConfig.ai?.summary?.maxMessagesPerChannel ?? 500,
-        defaultCount: rawConfig.ai?.summary?.defaultCount ?? 100,
+        maxMessagesPerChannel: clampInt(rawConfig.ai?.summary?.maxMessagesPerChannel, 500, 1, 100000),
+        defaultCount: clampInt(rawConfig.ai?.summary?.defaultCount, 100, 1, 100000),
       },
     },
     webui: {

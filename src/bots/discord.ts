@@ -343,8 +343,14 @@ export function initDiscordAiChat(): boolean {
     const guildAllowed = isAiAllowedGuild(message.guildId);
 
     if (guildAllowed && message.channel.isTextBased()) {
-      const author = message.member?.displayName || message.author.username;
-      recordChannelMessage('discord', message.channelId, message.id, author, message.cleanContent, message.createdTimestamp, extractImageUrls(message));
+      // 这是消息路径上最热的一段(每条消息都跑)：记录失败只降级告警，
+      // 绝不能让它抛出——否则会吞掉本条 @ 回复、并逃逸成未处理拒绝。
+      try {
+        const author = message.member?.displayName || message.author.username;
+        recordChannelMessage('discord', message.channelId, message.id, author, message.cleanContent, message.createdTimestamp, extractImageUrls(message));
+      } catch (e) {
+        console.warn('[AI] 记录频道消息失败(忽略):', (e as Error).message);
+      }
     }
 
     const botMentioned = message.mentions.has(client.user.id);

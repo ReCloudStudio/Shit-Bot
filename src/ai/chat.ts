@@ -185,6 +185,14 @@ const NON_ANSWER = '抱歉，我这次没能整理出有效回答。可以换个
 // 单条工具结果写入对话前的长度上限：防止超大页面/超多历史撑爆上下文、导致整条请求 400 硬失败
 const MAX_TOOL_RESULT = 16000;
 
+// 把模型/网关返回的 content 安全转成字符串：可能是 string、内容块数组、或异常类型(对象/null)，
+// 直接 .trim() 会抛。统一在这里窄化，避免一条畸形响应让整轮处理崩掉。
+function contentToText(c: unknown): string {
+  if (typeof c === 'string') return c;
+  if (Array.isArray(c)) return c.map((p: any) => (typeof p?.text === 'string' ? p.text : '')).join('');
+  return '';
+}
+
 const DISCORD_FORMAT =
   '输出只用 Discord 支持的 Markdown（**粗** *斜* __下划线__ ~~删除线~~ `代码` ```代码块``` > 引用 # 标题 - 列表 ||剧透|| [文字](链接)）。表格、图片、HTML、LaTeX 等不被渲染，尽量转成等价写法（如表格→列表或代码块），实在无法转换再原样保留。';
 
@@ -399,17 +407,24 @@ export async function chatWithAI(userMessage: string, ctx?: ChatContext): Promis
         console.warn(`[AI] 输出达到 max_tokens(${cfg.maxTokens}) 被截断 (finish_reason=length)`);
       }
 
-      const toolCalls = msg.tool_calls || [];
+      const toolCalls = Array.isArray(msg.tool_calls) ? msg.tool_calls : [];
       if (useTools && !lastIter && toolCalls.length > 0) {
         messages.push({
           role: 'assistant',
-          content: msg.content ?? '',
+          content: contentToText(msg.content),
           tool_calls: toolCalls,
         });
 
         for (const call of toolCalls) {
-          const name = call.function?.name || '';
-          const argStr = call.function?.arguments || '';
+          const fn = call.function || ({} as ToolCall['function']);
+          const name = typeof fn.name === 'string' ? fn.name : '';
+          // arguments 多数网关给字符串，但也有给已解析对象的；统一成字符串，避免 .slice / JSON.parse 抛错
+          const argStr =
+            typeof fn.arguments === 'string'
+              ? fn.arguments
+              : fn.arguments == null
+                ? ''
+                : JSON.stringify(fn.arguments);
           console.log(`[AI] 工具调用: ${name} ${argStr.slice(0, 120)}`);
           const result = await executeTool(name, argStr, toolCtx);
           const safeResult =
@@ -436,7 +451,7 @@ export async function chatWithAI(userMessage: string, ctx?: ChatContext): Promis
         continue;
       }
 
-      finalText = (msg.content || '').trim();
+      finalText = contentToText(msg.content).trim();
       finalFinishReason = finishReason;
       if (!finalText) {
         console.warn(`[AI] 本轮返回空文本 (finish_reason=${finishReason || 'n/a'}, tool_calls=${toolCalls.length}, lastIter=${lastIter})`);
@@ -452,7 +467,7 @@ export async function chatWithAI(userMessage: string, ctx?: ChatContext): Promis
       const escalated = Math.min((cfg.maxTokens || 1024) * 2, 32768);
       try {
         const data = await callApi(messages, tools, false, escalated);
-        finalText = (data.choices?.[0]?.message?.content || '').trim();
+        finalText = contentToText(data.choices?.[0]?.message?.content).trim();
         finalFinishReason = data.choices?.[0]?.finish_reason || '';
         if (!finalText) {
           console.warn(`[AI] 收尾(去掉工具)仍为空 (finish_reason=${data.choices?.[0]?.finish_reason || 'n/a'})`);
@@ -464,7 +479,7 @@ export async function chatWithAI(userMessage: string, ctx?: ChatContext): Promis
           stripImageParts(messages);
           try {
             const d = await callApi(messages, tools, false, escalated);
-            finalText = (d.choices?.[0]?.message?.content || '').trim();
+            finalText = contentToText(d.choices?.[0]?.message?.content).trim();
             finalFinishReason = d.choices?.[0]?.finish_reason || '';
           } catch (e2) {
             console.warn('[AI] 收尾去图重试仍失败:', (e2 as Error).message);
@@ -496,7 +511,7 @@ export async function chatWithAI(userMessage: string, ctx?: ChatContext): Promis
           });
           try {
             const d = await callApi(messages, tools, false);
-            candidate = (d.choices?.[0]?.message?.content || '').trim();
+            candidate = contentToText(d.choices?.[0]?.message?.content).trim();
             candidateTruncated = (d.choices?.[0]?.finish_reason || '') === 'length';
             messages.push({ role: 'assistant', content: candidate });
             parsed = parseReplyJson(candidate);
