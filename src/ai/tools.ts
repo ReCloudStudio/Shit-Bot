@@ -9,7 +9,7 @@ export interface ToolContext {
   channelId?: string;
   excludeMessageId?: string;
   backfill?: (targetTotal: number) => Promise<void>;
-  addImages?: (urls: string[]) => void;
+  addImages?: (urls: string[]) => number;
 }
 
 export interface OpenAITool {
@@ -140,7 +140,10 @@ export function buildTools(): OpenAITool[] {
     function: {
       name: 'read_image',
       description:
-        '当你需要"看"某张图片才能回答时调用：传入图片的 http(s) 直链(例如搜索结果里的图、用户在文字里贴的图片网址、网页里的配图)，系统会把图片加载进上下文供你查看后再作答。仅用于你确实需要看图的情况。',
+        '当你需要"看"某张图片才能回答、且你手上有这张图的真实 http(s) 直链时调用，系统会把它加载进上下文供你查看后再作答。\n' +
+        '严格要求：① 只能传入对话内容、工具返回结果或网页正文里【真实出现过】的图片直链，绝对不要自行编造、猜测或拼接 URL；' +
+        '② 用户当前消息附带的图、以及被引用消息里的图，已经直接展示在你眼前，不要再用本工具重复读取；' +
+        '③ 如果你手上并没有一个确切的图片直链，就不要调用本工具。',
       parameters: {
         type: 'object',
         properties: {
@@ -205,8 +208,14 @@ export async function executeTool(
           .join('\n');
       }
       case 'open_url': {
-        const text = await fetchUrl(args.url);
-        return text || '(该页面没有可读取的文本)';
+        const { text, images } = await fetchUrl(args.url);
+        let out = text || '(该页面没有可读取的文本)';
+        if (images.length > 0) {
+          out +=
+            `\n\n[页面中发现 ${images.length} 张图片，如需查看其中内容可调用 read_image 传入对应链接]:\n` +
+            images.map((u) => `- ${u}`).join('\n');
+        }
+        return out;
       }
       case 'read_image': {
         if (!ctx.addImages) return '当前环境不支持加载图片。';
@@ -228,8 +237,11 @@ export async function executeTool(
           }
         }
         if (valid.length === 0) return '没有有效的图片链接(需 http(s) 公网直链)。';
-        ctx.addImages(valid);
-        return `已加载 ${valid.length} 张图片到上下文，请查看后回答。`;
+        const added = ctx.addImages(valid);
+        if (added <= 0) {
+          return '这些图片可能已在上下文中、或本轮已达可加载图片数量上限。请基于已有的图片与信息作答，不要臆测未加载图片的内容。';
+        }
+        return `已加载 ${added} 张图片到上下文，请查看后回答。`;
       }
       case 'read_channel_history': {
         if (!ctx.channelId) return '无法读取频道历史(缺少频道上下文)。';
@@ -251,7 +263,11 @@ export async function executeTool(
           msgs = getRecentChannelMessages(ctx.platform, ctx.channelId, count, ctx.excludeMessageId);
         }
         if (msgs.length === 0) return '这个频道还没有可读取的消息。';
-        return `(本频道最近 ${msgs.length} 条记录，时间从旧到新)\n` + formatForSummary(msgs);
+        const hasImages = msgs.some((m) => m.images && m.images.length > 0);
+        const hint = hasImages
+          ? '（消息里的图片以 [图片: 链接] 标注；若需看图才能理解或作答，可调用 read_image 传入这些链接）\n'
+          : '';
+        return `(本频道最近 ${msgs.length} 条记录，时间从旧到新)\n` + hint + formatForSummary(msgs);
       }
       case 'recall_memory': {
         return recallMemories(ctx.platform, ctx.username, args.query || '');

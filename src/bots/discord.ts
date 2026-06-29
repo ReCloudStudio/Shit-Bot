@@ -7,6 +7,7 @@ import { storeSentMessage, getRecentSentMessages, deleteSentMessage, getSentMess
 import { chatWithAI, isAiEnabled } from '../ai/chat';
 import { listMemories, deleteMemory } from '../ai/memory';
 import { recordChannelMessage, getChannelMessageCount, getOldestStoredMessageId } from '../ai/summary';
+import { formatUtc8 } from '../ai/time';
 
 let client: Client | null = null;
 let targetChannel: TextChannel | null = null;
@@ -342,8 +343,14 @@ export function initDiscordAiChat(): boolean {
     const guildAllowed = isAiAllowedGuild(message.guildId);
 
     if (guildAllowed && message.channel.isTextBased()) {
-      const author = message.member?.displayName || message.author.username;
-      recordChannelMessage('discord', message.channelId, message.id, author, message.cleanContent, message.createdTimestamp);
+      // 这是消息路径上最热的一段(每条消息都跑)：记录失败只降级告警，
+      // 绝不能让它抛出——否则会吞掉本条 @ 回复、并逃逸成未处理拒绝。
+      try {
+        const author = message.member?.displayName || message.author.username;
+        recordChannelMessage('discord', message.channelId, message.id, author, message.cleanContent, message.createdTimestamp, extractImageUrls(message));
+      } catch (e) {
+        console.warn('[AI] 记录频道消息失败(忽略):', (e as Error).message);
+      }
     }
 
     const botMentioned = message.mentions.has(client.user.id);
@@ -378,7 +385,7 @@ export function initDiscordAiChat(): boolean {
           if (refMsg) {
             const refAuthor = refMsg.member?.displayName || refMsg.author.username;
             const refContent = refMsg.content.slice(0, 2000);
-            contextMessage = `[${refAuthor}]: ${refContent}`;
+            contextMessage = `[${formatUtc8(refMsg.createdTimestamp)}] [${refAuthor}]: ${refContent}`;
             console.log(`[AI] 获取到引用消息 (${refAuthor}): ${refContent.slice(0, 80)}...`);
             const refImgs = extractImageUrls(refMsg);
             if (refImgs.length) imageUrls = [...imageUrls, ...refImgs].slice(0, 6);
@@ -419,6 +426,10 @@ export function initDiscordAiChat(): boolean {
       });
       reply = res.reply;
       reactions = res.reactions;
+    } catch (e) {
+      // chatWithAI 正常不会抛(内部已兜底)，但万一抛出也要给用户一条兜底消息，绝不静默装死
+      console.error('[AI] chatWithAI 异常(兜底):', (e as Error).message);
+      reply = 'AI 暂时不可用，请稍后再试。';
     } finally {
       stopTyping();
     }
@@ -470,7 +481,7 @@ async function backfillChannelHistory(
     for (const m of arr) {
       if (m.author.bot) continue;
       const author = m.member?.displayName || m.author.username;
-      recordChannelMessage('discord', channelId, m.id, author, m.cleanContent, m.createdTimestamp);
+      recordChannelMessage('discord', channelId, m.id, author, m.cleanContent, m.createdTimestamp, extractImageUrls(m));
     }
     before = arr[arr.length - 1].id;
     have = getChannelMessageCount('discord', channelId);

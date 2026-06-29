@@ -25,6 +25,15 @@ console.log = (...args: any[]) => _log(ts(), ...args);
 console.warn = (...args: any[]) => _warn(ts(), ...args);
 console.error = (...args: any[]) => _error(ts(), ...args);
 
+// 进程级兜底：常驻 bot 以 I/O 为主，单个游离的 Promise 拒绝/未捕获异常只记录、不退出，
+// 避免一条边缘消息或某个事件回调的异常把整个进程(Discord/Telegram/轮询/审批/WebUI)拖垮。
+process.on('unhandledRejection', (reason) => {
+  console.error('未处理的 Promise 拒绝(已忽略，避免进程退出):', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('未捕获异常(已忽略，避免进程退出):', err);
+});
+
 let isRunning = false;
 let cronJob: cron.ScheduledTask | null = null;
 let webServer: http.Server | null = null;
@@ -181,7 +190,9 @@ async function start(): Promise<void> {
         telegramBot.action(/^post_/, handleTelegramApproval);
         telegramBot.action(/^recall_/, handleTelegramRecall);
         
-        telegramBot.launch();
+        telegramBot.launch().catch((e) =>
+          console.error('Telegram 轮询启动/运行失败:', (e as Error)?.message || e)
+        );
         console.log('Telegram bot 已启动, 审批处理器已注册');
       }
     }
@@ -197,28 +208,34 @@ async function start(): Promise<void> {
       initDiscordAiChat();
 
       discordClient.on('interactionCreate', async (interaction) => {
-        if (interaction.isMessageContextMenuCommand()) {
-          await handleRecallMessageContextMenu(interaction);
-          return;
-        }
-        if (interaction.isChatInputCommand()) {
-          if (interaction.commandName === 'recall') {
-            await handleRecallCommand(interaction);
-          } else if (interaction.commandName === 'memory') {
-            await handleMemoryCommand(interaction);
-          } else if (interaction.commandName === 'delete-memory') {
-            await handleDeleteMemoryCommand(interaction);
+        // 整个分发器包一层兜底：交互 3s token 过期或瞬时网络错误导致 reply 抛错时，
+        // 只记录日志、不让其逃逸成未处理拒绝(一次交互失败不应影响机器人存活)。
+        try {
+          if (interaction.isMessageContextMenuCommand()) {
+            await handleRecallMessageContextMenu(interaction);
+            return;
           }
-          return;
-        }
-        if (!interaction.isButton()) return;
-        const customId = interaction.customId;
-        if (customId.startsWith('recall_')) {
-          await handleDiscordRecall(interaction);
-          return;
-        }
-        if (customId.startsWith('approve_') || customId.startsWith('reject_') || customId.startsWith('post_')) {
-          await handleDiscordApproval(interaction);
+          if (interaction.isChatInputCommand()) {
+            if (interaction.commandName === 'recall') {
+              await handleRecallCommand(interaction);
+            } else if (interaction.commandName === 'memory') {
+              await handleMemoryCommand(interaction);
+            } else if (interaction.commandName === 'delete-memory') {
+              await handleDeleteMemoryCommand(interaction);
+            }
+            return;
+          }
+          if (!interaction.isButton()) return;
+          const customId = interaction.customId;
+          if (customId.startsWith('recall_')) {
+            await handleDiscordRecall(interaction);
+            return;
+          }
+          if (customId.startsWith('approve_') || customId.startsWith('reject_') || customId.startsWith('post_')) {
+            await handleDiscordApproval(interaction);
+          }
+        } catch (e) {
+          console.error('[交互处理] 未捕获异常(已忽略):', (e as Error)?.message || e);
         }
       });
       console.log('Discord 审批处理器已注册');

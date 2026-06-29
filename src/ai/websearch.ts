@@ -278,7 +278,51 @@ export async function webSearch(query: string, maxResults?: number): Promise<Sea
   }
 }
 
-export async function fetchUrl(url: string): Promise<string> {
+/**
+ * 从原始 HTML 里抽取图片直链：og:image / twitter:image 以及 <img src>（含 data-src 懒加载）。
+ * 全部按 baseUrl 解析为绝对 http(s) 链接、去重并限量；data: 等非 http(s) 链接会被过滤。
+ */
+function extractPageImages(html: string, baseUrl: string): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const push = (raw: string | undefined): void => {
+    if (!raw) return;
+    let abs: string;
+    try {
+      abs = new URL(decodeEntities(raw.trim()), baseUrl).toString();
+    } catch {
+      return;
+    }
+    if (!/^https?:\/\//i.test(abs) || seen.has(abs)) return;
+    seen.add(abs);
+    out.push(abs);
+  };
+
+  // 优先 og:image / twitter:image（通常是页面主图）
+  const metaRe = /<meta\b[^>]*>/gi;
+  let mm: RegExpExecArray | null;
+  while ((mm = metaRe.exec(html)) !== null) {
+    const tag = mm[0];
+    if (!/(?:property|name)=["'](?:og:image(?::url)?|twitter:image(?::src)?)["']/i.test(tag)) continue;
+    const c = tag.match(/content=["']([^"']+)["']/i);
+    if (c) push(c[1]);
+  }
+
+  // 正文 <img>（src 或懒加载 data-src）
+  const imgRe = /<img\b[^>]*>/gi;
+  let im: RegExpExecArray | null;
+  while ((im = imgRe.exec(html)) !== null && out.length < 24) {
+    const tag = im[0];
+    // 懒加载页面常把真图放在 data-src/data-original，src 只是占位(常为 data: 或 1px)，故真图优先、src 兜底
+    const lazy = tag.match(/\bdata-(?:src|original|lazy-src)=["']([^"']+)["']/i);
+    const plain = tag.match(/\bsrc=["']([^"']+)["']/i);
+    push(lazy?.[1] || plain?.[1]);
+  }
+
+  return out.slice(0, 12);
+}
+
+export async function fetchUrl(url: string): Promise<{ text: string; images: string[] }> {
   let current = url;
   let res: Response | undefined;
 
@@ -302,11 +346,20 @@ export async function fetchUrl(url: string): Promise<string> {
   if (!res) throw new Error('fetch 失败');
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const ctype = res.headers.get('content-type') || '';
+
+  // 链接本身就是一张图片：不读取二进制正文，直接提示模型用 read_image 查看
+  if (ctype.startsWith('image/')) {
+    res.body?.cancel().catch(() => {});
+    return { text: '(目标链接本身是一张图片，可用 read_image 查看其内容)', images: [current] };
+  }
+
   const raw = await readBodyCapped(res, MAX_FETCH_BYTES);
 
   if (ctype.includes('application/json') || /^\s*[{[]/.test(raw)) {
-    return raw;
+    return { text: raw, images: [] };
   }
+
+  const images = extractPageImages(raw, current);
 
   let text = raw
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
@@ -316,5 +369,5 @@ export async function fetchUrl(url: string): Promise<string> {
   const titleMatch = raw.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
   const title = titleMatch ? stripTags(titleMatch[1]) : '';
   text = stripTags(text);
-  return (title ? `# ${title}\n\n` : '') + text;
+  return { text: (title ? `# ${title}\n\n` : '') + text, images };
 }
