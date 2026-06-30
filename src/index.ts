@@ -5,7 +5,7 @@ import { fetchAllTweets } from './rss/fetcher';
 import { filterTweets, getPassedTweets } from './filters';
 import { initDiscord, shutdownDiscord, getDiscordClient, registerDiscordCommands, initDiscordAiChat, handleMemoryCommand, handleDeleteMemoryCommand } from './bots/discord';
 import { initTelegram, shutdownTelegram, getTelegramBot } from './bots/telegram';
-import { initDatabase, closeDatabase, markMultipleAsSent, cleanupOldRecords, cleanupExpiredImages, cleanupOldSentMessages, cleanupOldSentTgMessages } from './storage';
+import { initDatabase, closeDatabase, markMultipleAsSent, cleanupOldRecords, cleanupExpiredImages, cleanupOldSentMessages, cleanupOldSentTgMessages, cleanupCorruptedApprovals } from './storage';
 import { sendForApproval, sendToAllGroups, handleTelegramApproval, handleDiscordApproval, setTelegramBot, setDiscordClient, handleRecallCommand, handleRecallMessageContextMenu, handleTelegramRecall, handleDiscordRecall, rehydratePendingApprovals, cleanupExpiredApprovals } from './approval';
 import { initRenderer, shutdownRenderer } from './renderer';
 import { initTwitterClient, loginWithCredentials } from './twitter';
@@ -130,6 +130,7 @@ async function start(): Promise<void> {
   }
 
   initDatabase();
+  cleanupCorruptedApprovals();
   rehydratePendingApprovals();
 
   const config = getConfig();

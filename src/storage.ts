@@ -342,9 +342,21 @@ export function markApprovalDone(approvalId: string, approvedBy?: string, sentTo
   );
 }
 
-export function deletePendingApproval(approvalId: string): void {
+export function deletePendingApproval(approvalId: string | null | undefined): void {
+  if (!approvalId) return;
   const database = getDatabase();
   database.run('DELETE FROM pending_approvals WHERE approval_id = ?', [approvalId]);
+}
+
+export function cleanupCorruptedApprovals(): number {
+  const database = getDatabase();
+  const result = database.run(
+    `DELETE FROM pending_approvals WHERE approval_id IS NULL OR tweet_json = 'undefined' OR tweet_json IS NULL`
+  );
+  if (result.changes > 0) {
+    console.log(`已清理 ${result.changes} 条损坏的审批记录`);
+  }
+  return result.changes;
 }
 
 export function getAllPendingApprovals(): PersistedApproval[] {

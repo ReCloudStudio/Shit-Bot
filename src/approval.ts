@@ -70,6 +70,12 @@ export function rehydratePendingApprovals(): number {
   let count = 0;
 
   for (const p of persisted) {
+    if (!p.approvalId) {
+      console.warn(`[恢复] 跳过 approval_id 为空的损坏记录, group_name=${p.groupName}`);
+      deletePendingApproval(p.approvalId);
+      continue;
+    }
+
     try {
       const tweet = JSON.parse(p.tweetJson) as ProcessedTweet;
       const tgMsgIds: Record<string, number> = JSON.parse(p.telegramMsgIds);
@@ -91,7 +97,7 @@ export function rehydratePendingApprovals(): number {
       pendingApprovals.set(p.approvalId, approval);
       count++;
     } catch (err) {
-      console.error(`Failed to rehydrate approval ${p.approvalId}:`, err);
+      console.error(`[恢复] 恢复审批记录失败 approvalId=${p.approvalId}:`, err);
       deletePendingApproval(p.approvalId);
     }
   }
@@ -104,6 +110,8 @@ export function rehydratePendingApprovals(): number {
 }
 
 function tryRehydrateApproval(approvalId: string): PendingApproval | undefined {
+  if (!approvalId) return undefined;
+
   const persisted = getPendingApproval(approvalId);
   if (!persisted) return undefined;
 
