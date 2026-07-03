@@ -1,9 +1,9 @@
 import { Telegraf } from 'telegraf';
-import { ProcessedTweet } from '../types';
-import { getConfig } from '../config';
-import { formatTweetHTML, escapeHTML } from '../filters';
-import { renderTweetImage } from '../renderer';
-import { storeSentTgMessage } from '../storage';
+import { ProcessedTweet } from '@/types';
+import { getConfig } from '@/config';
+import { formatTweetHTML, escapeHTML } from '@/filters';
+import { renderTweetImage } from '@/renderer';
+import { storeSentTgMessage } from '@/storage';
 
 let bot: Telegraf | null = null;
 

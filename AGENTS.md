@@ -11,7 +11,7 @@
 ```bash
 bun install          # install deps
 bun run dev          # tsx src/index.ts (hot-reload dev server)
-bun run build        # tsc && cp src/web/ui.html dist/web/ui.html
+bun run build        # tsc && tsc-alias && cp src/web/ui.html dist/web/ui.html
 bun run start        # node dist/index.js
 ```
 
@@ -36,6 +36,40 @@ Build copies `src/web/ui.html` into `dist/web/` because tsc does not copy non-`.
 - When editing config via API, masked secrets (`••••••••`) are treated as "no change" — the existing value is preserved.
 - Web UI: `fetchAllTweets` is defined in both `src/twitter/client.ts` and `src/rss/fetcher.ts`. The one used is from `twitter/client.ts` (imported in `index.ts`).
 
+## Import path convention
+
+All internal imports use the `@/` alias (`@/` maps to `src/`). This avoids fragile relative paths like `../../../foo`:
+```typescript
+import { getConfig } from '@/config';          // instead of '../config'
+import { PluginDefinition } from '@/plugins/types'; // instead of '../../../plugins/types'
+```
+
+Configured via `tsconfig.json` `baseUrl` + `paths`. Built with `tsc` + `tsc-alias` (resolves aliases to relative paths in `dist/`).
+
+## Git conventions
+
+提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/)：
+
+```
+<type>(<scope>): <description>
+```
+
+- **type** — `feat`, `fix`, `chore`, `docs`, `style`, `refactor`, `perf`, `test`, `ci`, `build`, `revert`
+- **scope** (optional) — 受影响的模块，如 `discord`, `telegram`, `approval`, `web`, `plugins`
+- **description** — 英文，小写开头，结尾无句号，不超过 72 字符
+- **body** (可选) — 详细说明，空行分隔，每行不超过 72 字符
+- **footer** (可选) — `BREAKING CHANGE:` 或 `Refs #issue`
+
+示例：
+```
+feat(plugins): add plugin system with hook lifecycle
+fix(approval): prevent duplicate approval on concurrent requests
+docs: update README with deployment instructions
+ci: upgrade GitHub Actions to Node 24 compatible versions
+```
+
+所有提交必须 GPG 签名。提交前运行 `bun run commitlint` 校验信息格式。
+
 ## TypeScript conventions
 
 - Use `const`, never `var`.
@@ -44,4 +78,4 @@ Build copies `src/web/ui.html` into `dist/web/` because tsc does not copy non-`.
 - No `enum` — use literal unions.
 - Public API functions must declare return types explicitly.
 - Files: `kebab-case.ts`.
-- Keep imports in a consistent order; the repo has no ESLint/Prettier config yet — match existing import style.
+- All internal imports use `@/` alias (`@/config`, `@/ai/chat`, etc.). No relative paths like `../../foo`.

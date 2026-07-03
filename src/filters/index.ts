@@ -1,4 +1,4 @@
-import { Tweet, FilterConfig, UserConfig, ProcessedTweet } from '../types';
+import { Tweet, FilterConfig, UserConfig, ProcessedTweet } from '@/types';
 
 export function applyFilters(tweet: Tweet, userConfig: UserConfig): ProcessedTweet {
   const filters = userConfig.filters;

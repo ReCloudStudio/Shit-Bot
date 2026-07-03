@@ -5,34 +5,41 @@
   "main": "dist/index.js",
   "packageManager": "bun",
   "scripts": {
-    "build": "tsc && cp src/web/ui.html dist/web/ui.html",
+    "build": "tsc && tsc-alias && cp src/web/ui.html dist/web/ui.html",
     "build:binary": "bun build src/index.ts --compile --outfile dist/shit-bot && cp src/web/ui.html dist/ui.html",
     "build:binary:docker": "docker run --rm -v $(pwd):/app -w /app oven/bun sh -c 'bun install && bun build src/index.ts --compile --outfile dist/shit-bot && cp src/web/ui.html dist/ui.html'",
     "start": "bun run dist/index.js",
     "dev": "bun run src/index.ts",
-    "deploy": "bunx hugo && wrangler deploy",
-    "preview": "bunx hugo && wrangler dev"
+    "deploy": "wrangler deploy",
+    "preview": "wrangler dev",
+    "commitlint": "bunx commitlint --edit",
+    "prepare": "husky"
   },
   "dependencies": {
-    "discord.js": "^14.14.1",
-    "dotenv": "^16.3.1",
-    "https-proxy-agent": "^9.0.0",
-    "node-cron": "^3.0.3",
+    "discord.js": "^14.26.4",
+    "dotenv": "^17.4.2",
+    "https-proxy-agent": "^9.1.0",
+    "node-cron": "^4.5.0",
     "node-emoji": "^2.2.0",
     "rss-parser": "^3.13.0",
-    "smol-toml": "^1.6.1",
+    "smol-toml": "^1.7.0",
     "speakeasy": "^2.0.0",
     "telegraf": "^4.16.3",
     "twitter-openapi-typescript": "^0.0.56",
     "yaml": "^2.9.0"
   },
   "devDependencies": {
-    "@types/node": "^20.11.5",
+    "@commitlint/cli": "^21.2.0",
+    "@commitlint/config-conventional": "^21.2.0",
+    "@types/node": "^26.1.0",
     "@types/node-cron": "^3.0.11",
     "@types/speakeasy": "^2.0.10",
     "bun-types": "^1.3.14",
-    "tsx": "^4.7.0",
-    "typescript": "^5.3.3",
-    "wrangler": "^4.98.0"
+    "husky": "^9.1.7",
+    "ts-node": "^10.9.2",
+    "tsc-alias": "^1.8.17",
+    "tsx": "^4.22.5",
+    "typescript": "^6.0.3",
+    "wrangler": "^4.107.0"
   }
 }

@@ -1,4 +1,4 @@
-import { getConfig } from '../config';
+import { getConfig } from '@/config';
 import { webSearch, fetchUrl } from './websearch';
 import { recallMemories, saveMemory, updateMemory, deleteMemory } from './memory';
 import { getRecentChannelMessages, formatForSummary } from './summary';

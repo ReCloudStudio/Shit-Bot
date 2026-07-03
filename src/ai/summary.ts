@@ -1,5 +1,5 @@
-import { getDatabase } from '../storage';
-import { getConfig } from '../config';
+import { getDatabase } from '@/storage';
+import { getConfig } from '@/config';
 import { formatUtc8 } from './time';
 
 let tableReady = false;

@@ -1,16 +1,17 @@
-import cron from 'node-cron';
+import * as cron from 'node-cron';
 import * as http from 'http';
-import { loadConfig, getConfig, getEffectiveGroups } from './config';
-import { fetchAllTweets } from './rss/fetcher';
-import { filterTweets, getPassedTweets } from './filters';
-import { initDiscord, shutdownDiscord, getDiscordClient, registerDiscordCommands, initDiscordAiChat, handleMemoryCommand, handleDeleteMemoryCommand } from './bots/discord';
-import { initTelegram, shutdownTelegram, getTelegramBot } from './bots/telegram';
-import { initDatabase, closeDatabase, markMultipleAsSent, cleanupOldRecords, cleanupExpiredImages, cleanupOldSentMessages, cleanupOldSentTgMessages, cleanupCorruptedApprovals } from './storage';
-import { sendForApproval, sendToAllGroups, handleTelegramApproval, handleDiscordApproval, setTelegramBot, setDiscordClient, handleRecallCommand, handleRecallMessageContextMenu, handleTelegramRecall, handleDiscordRecall, rehydratePendingApprovals, cleanupExpiredApprovals } from './approval';
-import { initRenderer, shutdownRenderer } from './renderer';
-import { initTwitterClient, loginWithCredentials } from './twitter';
-import { startWebServer } from './web/server';
-import { Tweet } from './types';
+import { loadConfig, getConfig, getEffectiveGroups } from '@/config';
+import { fetchAllTweets } from '@/rss/fetcher';
+import { filterTweets, getPassedTweets } from '@/filters';
+import { initDiscord, shutdownDiscord, getDiscordClient, registerDiscordCommands } from '@/bots/discord';
+import { initTelegram, shutdownTelegram, getTelegramBot } from '@/bots/telegram';
+import { initDatabase, closeDatabase, markMultipleAsSent, cleanupOldRecords, cleanupExpiredImages, cleanupOldSentMessages, cleanupOldSentTgMessages, cleanupCorruptedApprovals } from '@/storage';
+import { sendForApproval, sendToAllGroups, handleTelegramApproval, handleDiscordApproval, setTelegramBot, setDiscordClient, handleRecallCommand, handleRecallMessageContextMenu, handleTelegramRecall, handleDiscordRecall, rehydratePendingApprovals, cleanupExpiredApprovals } from '@/approval';
+import { initRenderer, shutdownRenderer } from '@/renderer';
+import { initTwitterClient, loginWithCredentials } from '@/twitter';
+import { startWebServer } from '@/web/server';
+import { loadPlugins, executeHook, executeTweetHook, getPluginCronJobs, shutdownPlugins, setDiscordClientProvider, setTelegramBotProvider } from '@/plugins';
+import { Tweet } from '@/types';
 
 const _log = console.log.bind(console);
 const _warn = console.warn.bind(console);
@@ -53,7 +54,14 @@ async function processAndSendTweets(username: string, tweets: Tweet[]): Promise<
     return;
   }
 
-  const processed = filterTweets(tweets, userConfig);
+  const filteredTweets: Tweet[] = [];
+  for (const tweet of tweets) {
+    const result = await executeTweetHook(tweet);
+    if (result === null) continue;
+    filteredTweets.push(result);
+  }
+
+  const processed = filterTweets(filteredTweets, userConfig);
   const passed = getPassedTweets(processed);
 
   if (passed.length === 0) {
@@ -62,7 +70,9 @@ async function processAndSendTweets(username: string, tweets: Tweet[]): Promise<
 
   console.log(`处理 @${username} 的 ${passed.length} 条推文`);
 
-  if (config.enableApproval) {
+  const configForApproval = config.enableApproval;
+
+  if (configForApproval) {
     for (const tweet of passed) {
       await sendForApproval(tweet);
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -94,6 +104,8 @@ async function pollAndSend(): Promise<void> {
   try {
     console.log(`\n[${new Date().toISOString()}] 开始轮询...`);
 
+    await executeHook('onBeforePoll');
+
     cleanupExpiredImages(getConfig().imageCacheTtlMinutes);
     cleanupExpiredApprovals(60);
     cleanupOldSentMessages(7);
@@ -111,6 +123,15 @@ async function pollAndSend(): Promise<void> {
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
     console.log(`轮询完成, 耗时 ${elapsed}s`);
+
+    await executeHook('onAfterPoll', {
+      allTweets,
+      totalFetched: totalProcessed,
+      totalProcessed,
+      totalPassed,
+      totalSent: totalPassed,
+      elapsedSeconds: parseFloat(elapsed),
+    });
   } catch (error) {
     console.error('轮询出错:', error);
   } finally {
@@ -128,6 +149,9 @@ async function start(): Promise<void> {
     console.error('配置加载失败:', error);
     process.exit(1);
   }
+
+  await loadPlugins();
+  await executeHook('onConfigLoaded', getConfig());
 
   initDatabase();
   cleanupCorruptedApprovals();
@@ -177,6 +201,9 @@ async function start(): Promise<void> {
     }
   }
 
+  setDiscordClientProvider(() => getDiscordClient());
+  setTelegramBotProvider(() => getTelegramBot());
+
   if (config.telegram.enabled) {
     telegramReady = await initTelegram();
     if (!telegramReady) {
@@ -206,8 +233,6 @@ async function start(): Promise<void> {
 
       await registerDiscordCommands();
 
-      initDiscordAiChat();
-
       discordClient.on('interactionCreate', async (interaction) => {
         // 整个分发器包一层兜底：交互 3s token 过期或瞬时网络错误导致 reply 抛错时，
         // 只记录日志、不让其逃逸成未处理拒绝(一次交互失败不应影响机器人存活)。
@@ -219,10 +244,6 @@ async function start(): Promise<void> {
           if (interaction.isChatInputCommand()) {
             if (interaction.commandName === 'recall') {
               await handleRecallCommand(interaction);
-            } else if (interaction.commandName === 'memory') {
-              await handleMemoryCommand(interaction);
-            } else if (interaction.commandName === 'delete-memory') {
-              await handleDeleteMemoryCommand(interaction);
             }
             return;
           }
@@ -247,6 +268,8 @@ async function start(): Promise<void> {
     console.error('Discord 和 Telegram 均初始化失败, 退出程序.');
     process.exit(1);
   }
+
+  await executeHook('onAfterInit');
 
   webServer = startWebServer();
 
@@ -276,6 +299,11 @@ async function start(): Promise<void> {
   const cronExpression = `*/${config.pollIntervalMinutes} * * * *`;
   cronJob = cron.schedule(cronExpression, pollAndSend);
   console.log(`定时任务已设置: ${cronExpression}`);
+
+  for (const pc of getPluginCronJobs()) {
+    cron.schedule(pc.expression, pc.handler);
+    console.log(`[插件] 已注册定时任务: ${pc.expression}`);
+  }
 }
 
 async function shutdown(): Promise<void> {
@@ -294,6 +322,7 @@ async function shutdown(): Promise<void> {
   await shutdownDiscord();
   await shutdownTelegram();
   await shutdownRenderer();
+  await shutdownPlugins();
   closeDatabase();
 
   console.log('关闭完成');

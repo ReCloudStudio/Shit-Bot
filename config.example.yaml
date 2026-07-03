@@ -66,6 +66,29 @@ pollIntervalMinutes: 5
 maxPostsPerFetch: 20
 maxTweetAgeMinutes: 60
 
+# ─── Plugins (optional) ───────────────────────────────────────────────────────
+# 插件有三种来源（按优先级）：
+#   1. 内置 — src/plugins/<name>/  编译到 dist/plugins/<name>/
+#   2. GitHub — 自动 clone/pull，缓存在 data/plugins-cache/<name>/
+#   3. 外部目录 — pluginsDir 指定的路径
+#
+# plugins:
+#   - name: log-tweet
+#     enabled: true
+#     options:
+#       logFile: "./data/tweets.log"
+#
+#   # 从 GitHub 仓库自动拉取
+#   - name: translate
+#     github: someuser/translate-plugin
+#     ref: main
+#     enabled: true
+#     options:
+#       targetLang: zh
+#
+# # 外部插件目录（支持 Docker volume 挂载）
+# pluginsDir: /app/data/plugins
+
 # ─── Groups (required) ────────────────────────────────────────────────────────
 # Each group has its own users, target channels, and approval settings.
 

@@ -1,0 +1,28 @@
+export {
+  loadPlugins,
+  getLoadedPlugins,
+  getPlugin,
+  getPluginCronJobs,
+  executeHook,
+  executeTweetHook,
+  executeBeforeSendHook,
+  executeBeforeApprovalHook,
+  executeDiscordMessageHook,
+  executeTelegramMessageHook,
+  setDiscordClientProvider,
+  setTelegramBotProvider,
+  shutdownPlugins,
+  getPluginAPI,
+} from './manager';
+
+export type {
+  PluginManifest,
+  PluginHooks,
+  PluginAPI,
+  PluginLogger,
+  PluginConfigEntry,
+  PluginDefinition,
+  LoadedPlugin,
+  PollResult,
+  SendResult,
+} from './types';

@@ -1,6 +1,6 @@
-import { ProcessedTweet } from './types';
-import { getConfig } from './config';
-import { fetchTweetImage } from './xToImageApi';
+import { ProcessedTweet } from '@/types';
+import { getConfig } from '@/config';
+import { fetchTweetImage } from '@/xToImageApi';
 
 export async function initRenderer(): Promise<boolean> {
   const config = getConfig();

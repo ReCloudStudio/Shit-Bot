@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as dotenv from 'dotenv';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { parse as parseToml } from 'smol-toml';
-import { AppConfig, GroupConfig } from './types';
+import { AppConfig, GroupConfig } from '@/types';
 
 /** 把配置里的数值安全转成 [min,max] 内的有限整数；非法(NaN/负数/超大/非数字)时回退默认值。
  *  防止坏配置(尤其经 WebUI 保存)把 SQLite LIMIT 变成负数=无限读、或让工具循环/各类上限失控。 */
@@ -356,6 +356,8 @@ export function saveConfig(newConfig: AppConfig): void {
   rawConfigData.maxTweetAgeMinutes = newConfig.maxTweetAgeMinutes;
   rawConfigData.users = newConfig.users;
   rawConfigData.groups = newConfig.groups;
+  rawConfigData.plugins = newConfig.plugins;
+  rawConfigData.pluginsDir = newConfig.pluginsDir;
 
   const ext = path.extname(loadedConfigPath).toLowerCase();
   let content: string;

@@ -1,5 +1,5 @@
-import { ProcessedTweet } from './types';
-import { getConfig } from './config';
+import { ProcessedTweet } from '@/types';
+import { getConfig } from '@/config';
 
 const MAX_RETRIES = 3;
 const RETRY_DELAYS = [1000, 2000, 4000];

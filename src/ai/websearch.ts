@@ -1,4 +1,4 @@
-import { getConfig } from '../config';
+import { getConfig } from '@/config';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 

@@ -1,4 +1,4 @@
-import { getConfig } from '../config';
+import { getConfig } from '@/config';
 import { buildTools, executeTool, OpenAITool, ToolContext } from './tools';
 import { buildProfile, logConversation, getRecentConversation } from './memory';
 import { parseReplyJson, salvageReply, ReplyPayload } from './reactions';

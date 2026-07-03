@@ -1,9 +1,10 @@
 import * as http from 'http';
 import * as fs from 'fs';
 import * as path from 'path';
-import { getConfig, saveConfig, reloadConfig, getEffectiveGroups } from '../config';
-import { getRecentTweets, getSentCount } from '../storage';
-import { AppConfig, GroupConfig } from '../types';
+import { getConfig, saveConfig, reloadConfig, getEffectiveGroups } from '@/config';
+import { getRecentTweets, getSentCount } from '@/storage';
+import { getLoadedPlugins } from '@/plugins';
+import { AppConfig, GroupConfig } from '@/types';
 
 interface IncomingMessage extends http.IncomingMessage {
   body?: string;
@@ -65,6 +66,7 @@ function sanitizeConfigForAPI(cfg: AppConfig): any {
       apiKey: cfg.ai.apiKey ? '••••••••' : '',
       webSearch: { ...cfg.ai.webSearch, apiKey: cfg.ai.webSearch?.apiKey ? '••••••••' : '' },
     },
+    plugins: cfg.plugins || [],
     enableApproval: cfg.enableApproval,
     sendAsImage: cfg.sendAsImage,
     xToImageApiUrl: cfg.xToImageApiUrl,
@@ -166,6 +168,7 @@ async function handleAPI(req: IncomingMessage, res: http.ServerResponse, urlPath
       if (body.maxPostsPerFetch !== undefined) cfg.maxPostsPerFetch = body.maxPostsPerFetch;
       if (body.maxTweetAgeMinutes !== undefined) cfg.maxTweetAgeMinutes = body.maxTweetAgeMinutes;
       if (body.groups !== undefined) cfg.groups = body.groups;
+      if (body.plugins !== undefined) cfg.plugins = body.plugins;
 
       saveConfig(cfg);
       sendJSON(res, { success: true });
@@ -283,6 +286,19 @@ async function handleAPI(req: IncomingMessage, res: http.ServerResponse, urlPath
         telegramEnabled: cfg.telegram.enabled,
         approvalEnabled: cfg.enableApproval,
       });
+      return;
+    }
+
+    if (req.method === 'GET' && urlPath === '/api/plugins') {
+      const loaded = getLoadedPlugins();
+      sendJSON(res, loaded.map(p => ({
+        name: p.manifest.name,
+        version: p.manifest.version,
+        description: p.manifest.description,
+        author: p.manifest.author,
+        enabled: p.config?.enabled !== false,
+        options: p.config?.options || {},
+      })));
       return;
     }
 

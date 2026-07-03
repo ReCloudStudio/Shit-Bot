@@ -8,5 +8,6 @@ services:
     volumes:
       - ./config.yaml:/app/config.yaml
       - ./data:/app/data
+      # - ./plugins:/app/data/plugins   # 外部插件目录（可选）
     environment:
       - TZ=Asia/Shanghai

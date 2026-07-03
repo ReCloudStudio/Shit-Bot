@@ -1,7 +1,7 @@
 import { TwitterOpenApi, TwitterOpenApiClient } from 'twitter-openapi-typescript';
 import { TweetApiUtilsData, UserApiUtilsData } from 'twitter-openapi-typescript/dist/src/models';
-import { getConfig, getEffectiveGroups } from '../config';
-import { Tweet, UserConfig } from '../types';
+import { getConfig, getEffectiveGroups } from '@/config';
+import { Tweet, UserConfig } from '@/types';
 
 let client: TwitterOpenApiClient | null = null;
 const userIdCache = new Map<string, string>();

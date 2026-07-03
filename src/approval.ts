@@ -12,6 +12,7 @@ import {
   ChatInputCommandInteraction,
   MessageContextMenuCommandInteraction,
 } from "discord.js";
+import { executeHook, executeBeforeSendHook, executeBeforeApprovalHook } from '@/plugins';
 import { ProcessedTweet, GroupConfig } from "./types";
 import { getConfig, getEffectiveGroups } from "./config";
 import { formatTweetHTML, escapeHTML, formatContentForPlatform } from "./filters";
@@ -238,6 +239,13 @@ async function dispatchGroupDirect(
   const promises: Promise<void>[] = [];
   const results: TargetResult[] = [];
 
+  const sendable = await executeBeforeSendHook(tweet, group);
+  if (sendable === null) {
+    console.log(`[直发] 插件跳过群组 ${group.name}: onBeforeTweetSend 返回 null`);
+    return;
+  }
+  tweet = sendable;
+
   if (group.telegram && config.telegram.enabled && telegramBotInstance) {
     promises.push(
       withTimeoutResult(
@@ -284,6 +292,7 @@ async function dispatchGroupDirect(
       console.error(`[死信] [直发]: 推文=${tweet.id} 目标=${r.label} 错误=${r.error || "未知"}`);
       storeDeadLetter(tweet.id, r.label, group.name, r.error || "未知");
     }
+    await executeHook('onAfterTweetSend', tweet, group, { target: r.label, success: r.success, error: r.error });
   }
 }
 
@@ -310,6 +319,12 @@ export async function sendForApproval(tweet: ProcessedTweet): Promise<boolean> {
     }
 
     if (group.users && group.users.length > 0 && !group.users.some((u) => u.username === tweet.author)) {
+      continue;
+    }
+
+    const approvalModified = await executeBeforeApprovalHook(tweet, group);
+    if (approvalModified === null) {
+      console.log(`[审批] 插件跳过群组 ${group.name}: onBeforeApproval 返回 null`);
       continue;
     }
 
@@ -663,6 +678,13 @@ async function dispatchToTargets(pending: PendingApproval, targetTag?: string): 
     return { total: 0, succeeded: 0, failed: 0, targets: [] };
   }
 
+  const sendable = await executeBeforeSendHook(pending.tweet, group);
+  if (sendable === null) {
+    console.log(`[调度] 插件跳过: onBeforeTweetSend 返回 null`);
+    return { total: 0, succeeded: 0, failed: 0, targets: [] };
+  }
+  pending.tweet = sendable;
+
   const promises: Promise<void>[] = [];
   const results: TargetResult[] = [];
 
@@ -769,6 +791,7 @@ async function dispatchToTargets(pending: PendingApproval, targetTag?: string): 
       );
       storeDeadLetter(pending.tweet.id, r.label, pending.groupName, r.error || "未知");
     }
+    await executeHook('onAfterTweetSend', pending.tweet, group, { target: r.label, success: r.success, error: r.error });
   }
 
   if (failed > 0) {
@@ -838,11 +861,13 @@ export async function handleTelegramApproval(ctx: Context): Promise<void> {
 
     markApprovalDone(pending.id, adminName, pending.sentTo);
     await notifyOtherAdmins(pending, adminName, "approved", pending.sentTo);
+    await executeHook('onApprovalResult', pending.tweet, { name: pending.groupName } as GroupConfig, true, adminName, targetTag);
     console.log(
       `[审批] ${adminName} 已批准 (Telegram) [${pending.groupName}]: ${approvalId}${targetTag ? ` → ${targetTag}` : ""} — ${results.succeeded}/${results.total} 发送成功`,
     );
   } else {
     await notifyOtherAdmins(pending, adminName, "rejected");
+    await executeHook('onApprovalResult', pending.tweet, { name: pending.groupName } as GroupConfig, false, adminName, targetTag);
     console.log(`[审批] ${adminName} 已拒绝 (Telegram) [${pending.groupName}]: ${approvalId}`);
     pendingApprovals.delete(approvalId);
     deletePendingApproval(approvalId);
@@ -927,11 +952,13 @@ async function handleDiscordApprovalImpl(interaction: ButtonInteraction): Promis
 
     markApprovalDone(pending.id, adminName, pending.sentTo);
     await notifyOtherAdmins(pending, adminName, "approved", pending.sentTo);
+    await executeHook('onApprovalResult', pending.tweet, { name: pending.groupName } as GroupConfig, true, adminName, targetTag);
     console.log(
       `[审批] ${adminName} 已批准 (Discord) [${pending.groupName}]: ${approvalId}${targetTag ? ` → ${targetTag}` : ""} — ${results.succeeded}/${results.total} 发送成功`,
     );
   } else {
     await notifyOtherAdmins(pending, adminName, "rejected");
+    await executeHook('onApprovalResult', pending.tweet, { name: pending.groupName } as GroupConfig, false, adminName, targetTag);
     console.log(`[审批] ${adminName} 已拒绝 (Discord) [${pending.groupName}]: ${approvalId}`);
     pendingApprovals.delete(approvalId);
     deletePendingApproval(approvalId);
@@ -1292,6 +1319,13 @@ export async function sendToAllGroups(tweet: ProcessedTweet): Promise<void> {
     if (group.users && group.users.length > 0 && !group.users.some((u) => u.username === tweet.author)) {
       continue;
     }
+
+    const modified = await executeBeforeSendHook(tweet, group);
+    if (modified === null) {
+      console.log(`[直发] 插件跳过群组 ${group.name}: onBeforeTweetSend 返回 null`);
+      continue;
+    }
+    tweet = modified;
 
     if (group.telegram && config.telegram.enabled) {
       withTimeout(

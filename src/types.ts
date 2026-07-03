@@ -116,6 +116,14 @@ export interface WebUIConfig {
   password?: string;
 }
 
+export interface PluginConfigEntry {
+  name: string;
+  enabled: boolean;
+  options?: Record<string, any>;
+  github?: string;
+  ref?: string;
+}
+
 export interface AppConfig {
   users?: UserConfig[];
   discord: DiscordConfig;
@@ -133,6 +141,8 @@ export interface AppConfig {
   maxPostsPerFetch: number;
   maxTweetAgeMinutes: number;
   groups?: GroupConfig[];
+  plugins?: PluginConfigEntry[];
+  pluginsDir?: string | string[];
 }
 
 export interface GroupTelegramConfig {
