@@ -64,51 +64,6 @@ export interface TwitterConfig {
   totpSecret?: string;
 }
 
-export interface AIWebSearchConfig {
-  enabled: boolean;
-  provider?: 'duckduckgo' | 'tavily' | 'serper' | 'searxng' | 'brave';
-  apiKey?: string;
-  baseUrl?: string;
-  maxResults?: number;
-}
-
-export interface AISummaryConfig {
-  enabled: boolean;
-  maxMessagesPerChannel?: number;
-  defaultCount?: number;
-}
-
-export interface AIMemoryConfig {
-  enabled: boolean;
-  maxProfileItems?: number;
-  maxProfileChars?: number;
-  recentTurns?: number;
-  recallLimit?: number;
-  logConversations?: boolean;
-  maxConversationsPerUser?: number;
-}
-
-export interface AIConfig {
-  enabled: boolean;
-  apiUrl: string;
-  apiKey: string;
-  model: string;
-  systemPrompt: string;
-  maxTokens: number;
-  temperature: number;
-  allowedGuildIds?: string[];
-  maxToolIterations?: number;
-  reactions?: boolean;
-  ignoreEveryoneMention?: boolean;
-  // 单张图片内联(base64)时允许的原始字节上限；超过则跳过该图
-  maxImageBytes?: number;
-  // 单次请求所有内联图片的原始字节总预算；防止请求体过大被网关 400
-  maxTotalImageBytes?: number;
-  webSearch?: AIWebSearchConfig;
-  memory?: AIMemoryConfig;
-  summary?: AISummaryConfig;
-}
-
 export interface WebUIConfig {
   enabled: boolean;
   port: number;
@@ -130,7 +85,6 @@ export interface AppConfig {
   telegram: TelegramConfig;
   twitter: TwitterConfig;
   webui: WebUIConfig;
-  ai: AIConfig;
   enableApproval: boolean;
   sendAsImage: boolean;
   xToImageApiUrl?: string;

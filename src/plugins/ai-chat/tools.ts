@@ -1,4 +1,4 @@
-import { getConfig } from '@/config';
+import { getAiConfig } from './config';
 import { webSearch, fetchUrl } from './websearch';
 import { recallMemories, saveMemory, updateMemory, deleteMemory } from './memory';
 import { getRecentChannelMessages, formatForSummary } from './summary';
@@ -22,7 +22,7 @@ export interface OpenAITool {
 }
 
 export function buildTools(): OpenAITool[] {
-  const ai = getConfig().ai;
+  const ai = getAiConfig();
   const tools: OpenAITool[] = [];
 
   if (ai.webSearch?.enabled) {
@@ -237,7 +237,7 @@ export async function executeTool(
       }
       case 'read_channel_history': {
         if (!ctx.channelId) return '无法读取频道历史(缺少频道上下文)。';
-        const cfg = getConfig().ai.summary;
+        const cfg = getAiConfig().summary;
         const maxC = cfg?.maxMessagesPerChannel ?? 500;
         const def = cfg?.defaultCount ?? 100;
         let count =

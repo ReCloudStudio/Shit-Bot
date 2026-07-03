@@ -1,4 +1,4 @@
-import { getConfig } from '@/config';
+import { getAiConfig } from './config';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 
@@ -320,7 +320,7 @@ async function searchSearxng(query: string, max: number, baseUrl: string): Promi
 }
 
 export async function webSearch(query: string, maxResults?: number): Promise<SearchResult[]> {
-  const cfg = getConfig().ai.webSearch;
+  const cfg = getAiConfig().webSearch;
   const provider = cfg?.provider || 'duckduckgo';
   const fallbackMax = cfg?.maxResults ?? 5;
   const reqMax = typeof maxResults === 'number' ? maxResults : parseInt(String(maxResults ?? ''), 10);

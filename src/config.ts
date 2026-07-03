@@ -113,42 +113,6 @@ export function loadConfig(configPath?: string): AppConfig {
       email: process.env.TWITTER_EMAIL || rawConfig.twitter?.email,
       totpSecret: process.env.TWITTER_TOTP_SECRET || rawConfig.twitter?.totpSecret,
     },
-    ai: {
-      enabled: rawConfig.ai?.enabled ?? false,
-      apiUrl: process.env.AI_API_URL || rawConfig.ai?.apiUrl || 'https://api.openai.com/v1',
-      apiKey: process.env.AI_API_KEY || rawConfig.ai?.apiKey || '',
-      model: rawConfig.ai?.model || 'gpt-3.5-turbo',
-      systemPrompt: rawConfig.ai?.systemPrompt || '你是一个有帮助的助手。',
-      maxTokens: clampInt(rawConfig.ai?.maxTokens, 1024, 1, 32768),
-      temperature: clampFloat(rawConfig.ai?.temperature, 0.7, 0, 2),
-      allowedGuildIds: rawConfig.ai?.allowedGuildIds ?? [],
-      maxToolIterations: clampInt(rawConfig.ai?.maxToolIterations, 8, 1, 30),
-      reactions: rawConfig.ai?.reactions ?? true,
-      // 图片改由本机下载后以 base64 内联发给网关，故需限制单图与单次请求的字节量
-      maxImageBytes: clampInt(rawConfig.ai?.maxImageBytes, 6 * 1024 * 1024, 64 * 1024, 20 * 1024 * 1024),
-      maxTotalImageBytes: clampInt(rawConfig.ai?.maxTotalImageBytes, 12 * 1024 * 1024, 256 * 1024, 40 * 1024 * 1024),
-      webSearch: {
-        enabled: rawConfig.ai?.webSearch?.enabled ?? false,
-        provider: rawConfig.ai?.webSearch?.provider || 'duckduckgo',
-        apiKey: process.env.AI_WEB_SEARCH_API_KEY || rawConfig.ai?.webSearch?.apiKey || '',
-        baseUrl: rawConfig.ai?.webSearch?.baseUrl || '',
-        maxResults: clampInt(rawConfig.ai?.webSearch?.maxResults, 5, 1, 10),
-      },
-      memory: {
-        enabled: rawConfig.ai?.memory?.enabled ?? false,
-        maxProfileItems: clampInt(rawConfig.ai?.memory?.maxProfileItems, 12, 1, 200),
-        maxProfileChars: clampInt(rawConfig.ai?.memory?.maxProfileChars, 800, 50, 20000),
-        recentTurns: clampInt(rawConfig.ai?.memory?.recentTurns, 6, 0, 100),
-        recallLimit: clampInt(rawConfig.ai?.memory?.recallLimit, 8, 1, 100),
-        logConversations: rawConfig.ai?.memory?.logConversations ?? true,
-        maxConversationsPerUser: clampInt(rawConfig.ai?.memory?.maxConversationsPerUser, 500, 1, 100000),
-      },
-      summary: {
-        enabled: rawConfig.ai?.summary?.enabled ?? false,
-        maxMessagesPerChannel: clampInt(rawConfig.ai?.summary?.maxMessagesPerChannel, 500, 1, 100000),
-        defaultCount: clampInt(rawConfig.ai?.summary?.defaultCount, 100, 1, 100000),
-      },
-    },
     webui: {
       enabled: rawConfig.webui?.enabled ?? true,
       port: rawConfig.webui?.port ?? 3000,
@@ -244,19 +208,6 @@ function validateConfig(cfg: AppConfig): void {
     cfg.imageCacheTtlMinutes = 60;
   }
 
-  if (cfg.ai.enabled) {
-    if (!cfg.ai.apiKey) {
-      console.warn('AI 聊天已启用但未配置 API Key，将禁用 AI 聊天');
-      cfg.ai.enabled = false;
-    }
-    if (!cfg.ai.apiUrl) {
-      cfg.ai.apiUrl = 'https://api.openai.com/v1';
-    }
-    if (!cfg.ai.model) {
-      cfg.ai.model = 'gpt-3.5-turbo';
-    }
-  }
-
   if (cfg.enableApproval) {
     const hasGroupAdmins = cfg.groups?.some(g =>
       (g.telegram && g.approval?.telegramAdminChatIds?.length) ||
@@ -344,7 +295,6 @@ export function saveConfig(newConfig: AppConfig): void {
   rawConfigData.telegram = newConfig.telegram;
   rawConfigData.twitter = newConfig.twitter;
   rawConfigData.webui = newConfig.webui;
-  rawConfigData.ai = newConfig.ai;
   rawConfigData.enableApproval = newConfig.enableApproval;
   rawConfigData.sendAsImage = newConfig.sendAsImage;
   rawConfigData.xToImageApiUrl = newConfig.xToImageApiUrl;

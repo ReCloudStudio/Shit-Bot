@@ -1,16 +1,17 @@
 import { Client, TextChannel, Message, REST, Routes, ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { getConfig } from "@/config";
-import { chatWithAI, isAiEnabled } from "@/ai/chat";
-import { listMemories, deleteMemory } from "@/ai/memory";
-import { recordChannelMessage, getChannelMessageCount, getOldestStoredMessageId } from "@/ai/summary";
-import { formatUtc8 } from "@/ai/time";
+import { chatWithAI, isAiEnabled } from "./chat";
+import { listMemories, deleteMemory } from "./memory";
+import { recordChannelMessage, getChannelMessageCount, getOldestStoredMessageId } from "./summary";
+import { formatUtc8 } from "./time";
+import { getAiConfig, invalidateAiConfigCache } from "./config";
 import { executeDiscordMessageHook } from "@/plugins";
 import type { PluginDefinition } from "@/plugins/types";
 
 const exhaustedChannels = new Set<string>();
 
 function isAiAllowedGuild(guildId: string | null): boolean {
-  const allowed = getConfig().ai.allowedGuildIds;
+  const allowed = getAiConfig().allowedGuildIds;
   if (!allowed || allowed.length === 0) return true;
   return !!guildId && allowed.map(String).includes(guildId);
 }
@@ -153,6 +154,7 @@ export default {
   },
   init: (api) => {
     api.logger.info("AI 聊天插件已加载");
+    invalidateAiConfigCache();
   },
   hooks: {
     onAfterInit: async () => {
@@ -160,8 +162,9 @@ export default {
       const client = getDiscordClient();
       if (!client) return;
       const config = getConfig();
-      if (!config.discord.enabled || !isAiEnabled()) {
-        if (config.discord.enabled && !isAiEnabled()) {
+      const aiCfg = getAiConfig();
+      if (!config.discord.enabled || !aiCfg.enabled) {
+        if (config.discord.enabled && !aiCfg.enabled) {
           console.log("[AI] AI 聊天未启用，跳过 Discord AI 消息监听");
         }
         return;
@@ -202,7 +205,7 @@ export default {
           return;
         }
 
-        if (config.ai.ignoreEveryoneMention && message.mentions.everyone) {
+        if (aiCfg.ignoreEveryoneMention && message.mentions.everyone) {
           console.log("[AI] 消息包含 @everyone，跳过回复");
           return;
         }
@@ -211,7 +214,7 @@ export default {
         let imageUrls = extractImageUrls(message);
         const bareMention = !content && imageUrls.length === 0 && !message.reference?.messageId;
 
-        if (bareMention && !config.ai.summary?.enabled) {
+        if (bareMention && !aiCfg.summary?.enabled) {
           try {
             await message.reply("你好！请 @我 然后输入你的问题，我会尽力回答。");
           } catch {}
@@ -251,7 +254,7 @@ export default {
             images: imageUrls.length ? imageUrls : undefined,
             bareMention,
             backfillChannel:
-              config.ai.summary?.enabled && ch.isTextBased()
+              aiCfg.summary?.enabled && ch.isTextBased()
                 ? (target: number) => backfillChannelHistory(ch as TextChannel, message.channelId, target)
                 : undefined,
           });

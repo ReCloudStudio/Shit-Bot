@@ -61,11 +61,6 @@ function sanitizeConfigForAPI(cfg: AppConfig): any {
       totpSecret: cfg.twitter.totpSecret ? '••••••••' : '',
     },
     webui: { ...cfg.webui, password: cfg.webui.password ? '••••••••' : '' },
-    ai: {
-      ...cfg.ai,
-      apiKey: cfg.ai.apiKey ? '••••••••' : '',
-      webSearch: { ...cfg.ai.webSearch, apiKey: cfg.ai.webSearch?.apiKey ? '••••••••' : '' },
-    },
     plugins: cfg.plugins || [],
     enableApproval: cfg.enableApproval,
     sendAsImage: cfg.sendAsImage,
@@ -146,17 +141,6 @@ async function handleAPI(req: IncomingMessage, res: http.ServerResponse, urlPath
       if (body.webui !== undefined) {
         cfg.webui = { ...cfg.webui, ...body.webui };
         if (body.webui.password && body.webui.password !== '••••••••') cfg.webui.password = body.webui.password;
-      }
-      if (body.ai !== undefined) {
-        const prevAi = cfg.ai;
-        cfg.ai = { ...prevAi, ...body.ai };
-        if (!body.ai.apiKey || body.ai.apiKey === '••••••••') cfg.ai.apiKey = prevAi.apiKey;
-        if (body.ai.webSearch !== undefined && cfg.ai.webSearch) {
-          const incoming = body.ai.webSearch.apiKey;
-          if (!incoming || incoming === '••••••••') {
-            cfg.ai.webSearch.apiKey = prevAi.webSearch?.apiKey || '';
-          }
-        }
       }
       if (body.enableApproval !== undefined) cfg.enableApproval = body.enableApproval;
       if (body.sendAsImage !== undefined) cfg.sendAsImage = body.sendAsImage;

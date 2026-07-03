@@ -1,4 +1,4 @@
-import { getConfig } from '@/config';
+import { getAiConfig } from './config';
 import { buildTools, executeTool, OpenAITool, ToolContext } from './tools';
 import { buildProfile, logConversation, getRecentConversation } from './memory';
 import { parseReplyJson, salvageReply, ReplyPayload } from './reactions';
@@ -47,7 +47,7 @@ export interface ChatContext {
 }
 
 export function isAiEnabled(): boolean {
-  return getConfig().ai.enabled;
+  return getAiConfig().enabled;
 }
 
 function buildMemorySystemMessage(
@@ -84,7 +84,7 @@ async function callApi(
   toolChoice: 'auto' | 'none' | false,
   maxTokensOverride?: number
 ): Promise<ChatCompletionResponse> {
-  const cfg = getConfig().ai;
+  const cfg = getAiConfig();
 
   const body: Record<string, any> = {
     model: cfg.model,
@@ -258,7 +258,7 @@ function sanitizeInline(s: string, max: number): string {
 }
 
 export async function chatWithAI(userMessage: string, ctx?: ChatContext): Promise<ReplyPayload> {
-  const cfg = getConfig().ai;
+  const cfg = getAiConfig();
 
   if (!cfg.enabled || !cfg.apiKey) {
     return { reply: 'AI 聊天功能未启用或未配置 API Key。', reactions: [] };

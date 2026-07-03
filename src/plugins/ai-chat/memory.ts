@@ -1,5 +1,5 @@
 import { getDatabase } from '@/storage';
-import { getConfig } from '@/config';
+import { getAiConfig } from './config';
 import { formatUtc8 } from './time';
 
 export interface MemoryRow {
@@ -147,7 +147,7 @@ export function deleteMemory(platform: string, username: string, key: string): b
 
 export function buildProfile(platform: string, username: string): string | null {
   ensureTables();
-  const cfg = getConfig().ai.memory;
+  const cfg = getAiConfig().memory;
   const maxItems = cfg?.maxProfileItems ?? 12;
   const maxChars = cfg?.maxProfileChars ?? 800;
 
@@ -234,7 +234,7 @@ export function recallMemories(
 ): string {
   ensureTables();
   const db = getDatabase();
-  const lim = limit ?? getConfig().ai.memory?.recallLimit ?? 8;
+  const lim = limit ?? getAiConfig().memory?.recallLimit ?? 8;
   const tokens = tokenizeQuery(query);
 
   type ConvRow = { role: string; content: string; created_at: number };
@@ -319,7 +319,7 @@ export function logConversation(
   role: 'user' | 'assistant',
   content: string
 ): void {
-  const cfg = getConfig().ai.memory;
+  const cfg = getAiConfig().memory;
   if (!cfg?.enabled || cfg.logConversations === false) return;
   const text = String(content || '').trim();
   if (!text) return;

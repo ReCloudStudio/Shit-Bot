@@ -1,5 +1,5 @@
 import { getDatabase } from '@/storage';
-import { getConfig } from '@/config';
+import { getAiConfig } from './config';
 import { formatUtc8 } from './time';
 
 let tableReady = false;
@@ -56,7 +56,7 @@ export function recordChannelMessage(
   createdAt: number,
   images?: string[]
 ): void {
-  const cfg = getConfig().ai.summary;
+  const cfg = getAiConfig().summary;
   if (!cfg?.enabled) return;
   const text = String(content || '').trim();
   const imgs = (images || []).filter((u) => typeof u === 'string' && !!u).slice(0, 6);
