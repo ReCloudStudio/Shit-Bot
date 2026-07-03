@@ -46,30 +46,6 @@ import { PluginDefinition } from '@/plugins/types'; // instead of '../../../plug
 
 Configured via `tsconfig.json` `baseUrl` + `paths`. Built with `tsc` + `tsc-alias` (resolves aliases to relative paths in `dist/`).
 
-## Git conventions
-
-提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/)：
-
-```
-<type>(<scope>): <description>
-```
-
-- **type** — `feat`, `fix`, `chore`, `docs`, `style`, `refactor`, `perf`, `test`, `ci`, `build`, `revert`
-- **scope** (optional) — 受影响的模块，如 `discord`, `telegram`, `approval`, `web`, `plugins`
-- **description** — 英文，小写开头，结尾无句号，不超过 72 字符
-- **body** (可选) — 详细说明，空行分隔，每行不超过 72 字符
-- **footer** (可选) — `BREAKING CHANGE:` 或 `Refs #issue`
-
-示例：
-```
-feat(plugins): add plugin system with hook lifecycle
-fix(approval): prevent duplicate approval on concurrent requests
-docs: update README with deployment instructions
-ci: upgrade GitHub Actions to Node 24 compatible versions
-```
-
-所有提交必须 GPG 签名。提交前运行 `bun run commitlint` 校验信息格式。
-
 ## TypeScript conventions
 
 - Use `const`, never `var`.

@@ -351,7 +351,7 @@ export function deletePendingApproval(approvalId: string | null | undefined): vo
 export function cleanupCorruptedApprovals(): number {
   const database = getDatabase();
   const result = database.run(
-    `DELETE FROM pending_approvals WHERE approval_id IS NULL OR tweet_json = 'undefined' OR tweet_json IS NULL`
+    `DELETE FROM pending_approvals WHERE approval_id IS NULL OR approval_id = '' OR tweet_json = 'undefined' OR tweet_json IS NULL`
   );
   if (result.changes > 0) {
     console.log(`已清理 ${result.changes} 条损坏的审批记录`);
@@ -359,14 +359,16 @@ export function cleanupCorruptedApprovals(): number {
   return result.changes;
 }
 
+const APPROVAL_COLS = `approval_id as "approvalId", group_name as "groupName", tweet_json as "tweetJson", telegram_msg_ids as "telegramMsgIds", discord_msg_ids as "discordMsgIds", created_at as "createdAt", approved, approved_by as "approvedBy", sent_to as "sentTo", has_image as "hasImage"`;
+
 export function getAllPendingApprovals(): PersistedApproval[] {
   const database = getDatabase();
-  return database.query('SELECT * FROM pending_approvals WHERE approved = 0').all() as PersistedApproval[];
+  return database.query(`SELECT ${APPROVAL_COLS} FROM pending_approvals WHERE approved = 0`).all() as PersistedApproval[];
 }
 
 export function getPendingApproval(approvalId: string): PersistedApproval | null {
   const database = getDatabase();
-  return (database.query('SELECT * FROM pending_approvals WHERE approval_id = ?').get(approvalId) as PersistedApproval) || null;
+  return (database.query(`SELECT ${APPROVAL_COLS} FROM pending_approvals WHERE approval_id = ?`).get(approvalId) as PersistedApproval) || null;
 }
 
 export function hasPendingApprovalForTweet(tweetId: string, groupName?: string): boolean {

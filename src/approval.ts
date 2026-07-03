@@ -73,7 +73,6 @@ export function rehydratePendingApprovals(): number {
   for (const p of persisted) {
     if (!p.approvalId) {
       console.warn(`[恢复] 跳过 approval_id 为空的损坏记录, group_name=${p.groupName}`);
-      deletePendingApproval(p.approvalId);
       continue;
     }
 
