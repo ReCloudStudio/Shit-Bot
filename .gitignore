@@ -40,4 +40,5 @@ Thumbs.db
 !.env.example
 
 # Docs
-docs/.vitepress
+docs/.vitepress/*
+!docs/.vitepress/config.mts
