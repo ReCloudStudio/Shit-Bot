@@ -12,7 +12,7 @@ telegram:
   apiRoot: ""
 
 twitter:
-  enabled: true          # 设为 false 可关闭推文监控, 只跑 AI 聊天 / WebUI
+  enabled: true # 设为 false 可关闭推文监控, 只跑 AI 聊天 / WebUI
   authToken: ""
   ct0: ""
   username: ""

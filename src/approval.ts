@@ -536,6 +536,11 @@ export async function sendForApproval(tweet: ProcessedTweet): Promise<boolean> {
     }
 
     if (!sentToTelegram && !sentToDiscord) {
+      const hasApprovalConfig = !!(group.approval?.telegramAdminChatIds?.length || group.approval?.discordAdminChannelId);
+      if (hasApprovalConfig) {
+        console.error(`[审批] 群组 ${group.name}: 审批通知发送失败, 跳过此推文`);
+        continue;
+      }
       anySent = true;
       console.log(`[直发] 群组 ${group.name} 无审批配置, 直接发送`);
       await dispatchGroupDirect(tweet, group, imageBuffer);
