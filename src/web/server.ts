@@ -4,7 +4,8 @@ import * as path from 'path';
 import { getConfig, saveConfig, reloadConfig, getEffectiveGroups } from '@/config';
 import { getRecentTweets, getSentCount } from '@/storage';
 import { getLoadedPlugins } from '@/plugins';
-import { AppConfig, GroupConfig } from '@/types';
+import { sendForApproval } from '@/approval';
+import { AppConfig, GroupConfig, ProcessedTweet } from '@/types';
 
 interface IncomingMessage extends http.IncomingMessage {
   body?: string;
@@ -283,6 +284,47 @@ async function handleAPI(req: IncomingMessage, res: http.ServerResponse, urlPath
         enabled: p.config?.enabled !== false,
         options: p.config?.options || {},
       })));
+      return;
+    }
+
+    if (req.method === 'POST' && urlPath === '/api/debug/test-tweet') {
+      const body = JSON.parse(req.body || '{}');
+      const tweetUrl = body.url;
+      const content = body.content || '这是一条测试推文';
+      const author = body.author || 'test_user';
+      const authorName = body.authorName || 'Test User';
+
+      if (!tweetUrl && !body.mock) {
+        sendError(res, '需要 url 或 mock: true');
+        return;
+      }
+
+      const tweet: ProcessedTweet = {
+        id: body.mock ? `mock_${Date.now()}` : (tweetUrl?.match(/\/status\/(\d+)/)?.[1] || `${Date.now()}`),
+        author,
+        authorName,
+        content,
+        url: tweetUrl || `https://x.com/${author}/status/${Date.now()}`,
+        publishedAt: new Date(),
+        mediaUrls: body.mediaUrls || [],
+        isRetweet: false,
+        isReply: false,
+        matchedUser: { username: '*' },
+        passedFilters: true,
+        filterReasons: [],
+      };
+
+      console.log(`[调试] 手动发送测试推文: ${tweet.url}`);
+      const config = getConfig();
+
+      if (config.enableApproval) {
+        await sendForApproval(tweet);
+      } else {
+        const { sendToAllGroups } = await import('@/approval');
+        await sendToAllGroups(tweet);
+      }
+
+      sendJSON(res, { success: true, tweetId: tweet.id });
       return;
     }
 
