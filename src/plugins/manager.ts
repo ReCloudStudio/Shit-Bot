@@ -339,6 +339,23 @@ export async function executeBeforeApprovalHook(tweet: any, group: any): Promise
   return current;
 }
 
+export async function getPluginDiscordCommands(): Promise<any[]> {
+  const commands: any[] = [];
+  for (const plugin of plugins.values()) {
+    const hook = plugin.hooks.onDiscordCommands as (() => any[] | Promise<any[]>) | undefined;
+    if (!hook) continue;
+    try {
+      const result = await hook();
+      if (Array.isArray(result)) {
+        commands.push(...result);
+      }
+    } catch (err) {
+      console.error(`[插件] 插件 ${plugin.manifest.name} onDiscordCommands 失败:`, err);
+    }
+  }
+  return commands;
+}
+
 export async function shutdownPlugins(): Promise<void> {
   await executeHook('onBeforeShutdown');
   plugins.clear();

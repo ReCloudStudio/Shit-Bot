@@ -11,6 +11,7 @@ export {
   executeTelegramMessageHook,
   setDiscordClientProvider,
   setTelegramBotProvider,
+  getPluginDiscordCommands,
   shutdownPlugins,
   getPluginAPI,
 } from './manager';

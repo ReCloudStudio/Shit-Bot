@@ -4,6 +4,7 @@ import { getConfig } from '@/config';
 import { formatContentForPlatform } from '@/filters';
 import { renderTweetImage } from '@/renderer';
 import { storeSentMessage, getRecentSentMessages, deleteSentMessage, getSentMessageByMessageId } from '@/storage';
+import { getPluginDiscordCommands } from '@/plugins';
 
 
 let client: Client | null = null;
@@ -242,7 +243,7 @@ export async function registerDiscordCommands(): Promise<void> {
   try {
     const rest = new REST({ version: '10' }).setToken(getConfig().discord.token);
 
-    const commands = [
+    const coreCommands = [
       {
         name: 'recall',
         description: '撤回 bot 发送的消息 (需要审批权限)',
@@ -273,12 +274,15 @@ export async function registerDiscordCommands(): Promise<void> {
       },
     ];
 
+    const pluginCommands = await getPluginDiscordCommands();
+    const commands = [...coreCommands, ...pluginCommands];
+
     await rest.put(
       Routes.applicationCommands(client.user!.id),
       { body: commands }
     );
 
-    console.log('Discord 斜杠命令已注册');
+    console.log(`Discord 斜杠命令已注册 (${commands.length} 个)`);
   } catch (error) {
     console.error('Discord 命令注册失败:', error);
   }

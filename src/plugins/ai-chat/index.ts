@@ -1,4 +1,4 @@
-import { Client, TextChannel, Message, REST, Routes, ChatInputCommandInteraction, MessageFlags } from "discord.js";
+import { Client, TextChannel, Message, ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { getConfig } from "@/config";
 import { chatWithAI, isAiEnabled } from "./chat";
 import { listMemories, deleteMemory } from "./memory";
@@ -116,35 +116,6 @@ async function handleDeleteMemoryCommand(interaction: ChatInputCommandInteractio
   });
 }
 
-async function registerAiCommands(client: Client): Promise<void> {
-  try {
-    const rest = new REST({ version: "10" }).setToken(getConfig().discord.token);
-    await rest.post(Routes.applicationCommands(client.user!.id), {
-      body: {
-        name: "memory",
-        description: "查看 AI 对你的全部记忆",
-      },
-    });
-    await rest.post(Routes.applicationCommands(client.user!.id), {
-      body: {
-        name: "delete-memory",
-        description: "直接删除指定 key 的记忆 (不经过 AI)",
-        options: [
-          {
-            name: "key",
-            description: "要删除的记忆键 (可用 /memory 查看)",
-            type: 3,
-            required: true,
-          },
-        ],
-      },
-    });
-    console.log("[AI] AI 聊天斜杠命令已注册");
-  } catch (error) {
-    console.error("[AI] AI 聊天命令注册失败:", error);
-  }
-}
-
 export default {
   manifest: {
     name: "ai-chat",
@@ -169,8 +140,6 @@ export default {
         }
         return;
       }
-
-      await registerAiCommands(client);
 
       client.on("messageCreate", async (message: Message) => {
         if (message.author.bot) return;
@@ -287,6 +256,28 @@ export default {
       });
 
       console.log("[AI] Discord AI 聊天监听器已注册 (插件)");
+    },
+    onDiscordCommands: () => {
+      const aiCfg = getAiConfig();
+      if (!aiCfg.enabled) return [];
+      return [
+        {
+          name: "memory",
+          description: "查看 AI 对你的全部记忆",
+        },
+        {
+          name: "delete-memory",
+          description: "直接删除指定 key 的记忆 (不经过 AI)",
+          options: [
+            {
+              name: "key",
+              description: "要删除的记忆键 (可用 /memory 查看)",
+              type: 3,
+              required: true,
+            },
+          ],
+        },
+      ];
     },
   },
 } satisfies PluginDefinition;
