@@ -1,5 +1,7 @@
 # ─── Platform credentials & global settings ───────────────────────────────────
 
+# proxy: "http://127.0.0.1:7890"
+
 discord:
   enabled: false
   token: YOUR_DISCORD_BOT_TOKEN

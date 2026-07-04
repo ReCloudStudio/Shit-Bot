@@ -5,6 +5,7 @@ import { formatContentForPlatform } from '@/filters';
 import { renderTweetImage } from '@/renderer';
 import { storeSentMessage, getRecentSentMessages, deleteSentMessage, getSentMessageByMessageId } from '@/storage';
 
+
 let client: Client | null = null;
 let targetChannel: TextChannel | null = null;
 

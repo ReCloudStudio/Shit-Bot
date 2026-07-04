@@ -94,8 +94,11 @@ export function loadConfig(configPath?: string): AppConfig {
   const rawConfig = rawConfigData;
   loadedConfigPath = filePath;
 
+  const proxyUrl = rawConfig.proxy || process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+
   const loadedConfig = {
     ...rawConfig,
+    proxy: proxyUrl,
     discord: {
       ...rawConfig.discord,
       token: process.env.DISCORD_TOKEN || rawConfig.discord?.token,

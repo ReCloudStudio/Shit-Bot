@@ -81,6 +81,7 @@ export interface PluginConfigEntry {
 
 export interface AppConfig {
   users?: UserConfig[];
+  proxy?: string;
   discord: DiscordConfig;
   telegram: TelegramConfig;
   twitter: TwitterConfig;

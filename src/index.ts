@@ -150,6 +150,13 @@ async function start(): Promise<void> {
     process.exit(1);
   }
 
+  const proxyUrl = getConfig().proxy || process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+  if (proxyUrl) {
+    process.env.HTTPS_PROXY = proxyUrl;
+    process.env.HTTP_PROXY = proxyUrl;
+    console.log(`全局代理已设置: ${proxyUrl}`);
+  }
+
   await loadPlugins();
   await executeHook('onConfigLoaded', getConfig());
 
