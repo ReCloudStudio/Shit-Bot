@@ -35,12 +35,19 @@ export async function initDiscord(): Promise<boolean> {
     return false;
   }
 
+  console.log('正在初始化 Discord 客户端...');
+
   try {
     client = new Client({
       intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
     });
 
-    await client.login(config.discord.token);
+    await Promise.race([
+      client.login(config.discord.token),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Discord 登录超时 (30s)')), 30000)
+      ),
+    ]);
 
     console.log('Discord bot 已连接 (群组指定目标频道)');
 
