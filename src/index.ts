@@ -5,6 +5,7 @@ import { fetchAllTweets } from '@/rss/fetcher';
 import { filterTweets, getPassedTweets } from '@/filters';
 import { initDiscord, shutdownDiscord, getDiscordClient, registerDiscordCommands } from '@/bots/discord';
 import { initTelegram, shutdownTelegram, getTelegramBot } from '@/bots/telegram';
+import { initOneBot, shutdownOneBot, setOneBotMessageHandler, isOneBotConnected } from '@/bots/onebot';
 import { initDatabase, closeDatabase, markMultipleAsSent, cleanupOldRecords, cleanupExpiredImages, cleanupOldSentMessages, cleanupOldSentTgMessages, cleanupCorruptedApprovals } from '@/storage';
 import { sendForApproval, sendToAllGroups, handleTelegramApproval, handleDiscordApproval, setTelegramBot, setDiscordClient, handleRecallCommand, handleRecallMessageContextMenu, handleTelegramRecall, handleDiscordRecall, rehydratePendingApprovals, cleanupExpiredApprovals } from '@/approval';
 import { initRenderer, shutdownRenderer } from '@/renderer';
@@ -271,8 +272,28 @@ async function start(): Promise<void> {
     }
   }
 
-  if (config.discord.enabled && !discordReady && config.telegram.enabled && !telegramReady) {
-    console.error('Discord 和 Telegram 均初始化失败, 退出程序.');
+  if (config.onebot.enabled) {
+    const onebotReady = await initOneBot();
+    if (onebotReady) {
+      setOneBotMessageHandler(async (message) => {
+        const raw = message.raw_message || '';
+        const approvalMatch = raw.match(/\/approve\s+(.+)/);
+        const rejectMatch = raw.match(/\/reject\s+(.+)/);
+        if ((approvalMatch || rejectMatch) && message.group_id) {
+          const approvalId = (approvalMatch || rejectMatch)![1].trim();
+          const reject = !!rejectMatch;
+          console.log(`[OneBot] 收到${reject ? '拒绝' : '批准'}指令: ${approvalId}`);
+          const { handleOneBotApproval } = await import('@/approval');
+          await handleOneBotApproval(approvalId, message.user_id, message.group_id, reject);
+        }
+      });
+      console.log('OneBot 审批处理器已注册');
+    }
+  }
+
+  const anyBotEnabled = (config.discord.enabled && discordReady) || (config.telegram.enabled && telegramReady) || (config.onebot.enabled && isOneBotConnected());
+  if (!anyBotEnabled) {
+    console.error('所有 Bot 均初始化失败, 退出程序.');
     process.exit(1);
   }
 

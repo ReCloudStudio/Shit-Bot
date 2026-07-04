@@ -107,6 +107,13 @@ export function loadConfig(configPath?: string): AppConfig {
       ...rawConfig.telegram,
       token: process.env.TELEGRAM_TOKEN || rawConfig.telegram?.token,
     },
+    onebot: {
+      enabled: rawConfig.onebot?.enabled ?? false,
+      url: process.env.ONEBOT_URL || rawConfig.onebot?.url || '',
+      token: process.env.ONEBOT_TOKEN || rawConfig.onebot?.token,
+      secret: process.env.ONEBOT_SECRET || rawConfig.onebot?.secret,
+      reconnectInterval: rawConfig.onebot?.reconnectInterval ?? 5000,
+    },
     twitter: {
       enabled: rawConfig.twitter?.enabled ?? true,
       authToken: process.env.TWITTER_AUTH_TOKEN || rawConfig.twitter?.authToken || '',
@@ -296,6 +303,7 @@ export function saveConfig(newConfig: AppConfig): void {
 
   rawConfigData.discord = newConfig.discord;
   rawConfigData.telegram = newConfig.telegram;
+  rawConfigData.onebot = newConfig.onebot;
   rawConfigData.twitter = newConfig.twitter;
   rawConfigData.webui = newConfig.webui;
   rawConfigData.enableApproval = newConfig.enableApproval;

@@ -64,12 +64,24 @@ export function initDatabase(): void {
     )
   `);
 
+  db.run(`
+    CREATE TABLE IF NOT EXISTS sent_onebot_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      group_id INTEGER NOT NULL,
+      message_id INTEGER NOT NULL,
+      tweet_id TEXT,
+      sent_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+    )
+  `);
+
   db.run('CREATE INDEX IF NOT EXISTS idx_sent_tweets_author ON sent_tweets(author)');
   db.run('CREATE INDEX IF NOT EXISTS idx_sent_tweets_sent_at ON sent_tweets(sent_at)');
   db.run('CREATE INDEX IF NOT EXISTS idx_sent_messages_channel ON sent_messages(channel_id)');
   db.run('CREATE INDEX IF NOT EXISTS idx_sent_messages_tweet_id ON sent_messages(tweet_id)');
   db.run('CREATE INDEX IF NOT EXISTS idx_sent_tg_messages_chat ON sent_tg_messages(chat_id)');
   db.run('CREATE INDEX IF NOT EXISTS idx_sent_tg_messages_tweet_id ON sent_tg_messages(tweet_id)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_sent_onebot_messages_group ON sent_onebot_messages(group_id)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_sent_onebot_messages_tweet_id ON sent_onebot_messages(tweet_id)');
 
   db.run(`
     CREATE TABLE IF NOT EXISTS pending_approvals (
@@ -89,6 +101,12 @@ export function initDatabase(): void {
 
   try {
     db.run('ALTER TABLE pending_approvals ADD COLUMN tweet_id TEXT NOT NULL DEFAULT \'\'');
+  } catch {
+    // column already exists
+  }
+
+  try {
+    db.run('ALTER TABLE pending_approvals ADD COLUMN onebot_msg_ids TEXT NOT NULL DEFAULT \'{}\'');
   } catch {
     // column already exists
   }
@@ -292,12 +310,46 @@ export function cleanupOldSentTgMessages(maxAgeDays: number = 7): number {
   return result.changes;
 }
 
+export function storeSentOneBotMessage(groupId: number, messageId: number, tweetId?: string): void {
+  const database = getDatabase();
+  database.run(
+    `INSERT INTO sent_onebot_messages (group_id, message_id, tweet_id, sent_at) VALUES (?, ?, ?, ?)`,
+    [groupId, messageId, tweetId || null, Date.now()]
+  );
+}
+
+export function getSentOneBotMessagesByTweetId(tweetId: string): Array<{
+  id: number;
+  group_id: number;
+  message_id: number;
+  tweet_id: string | null;
+  sent_at: number;
+}> {
+  const database = getDatabase();
+  return database.query(
+    'SELECT * FROM sent_onebot_messages WHERE tweet_id = ?'
+  ).all(tweetId) as any[];
+}
+
+export function deleteSentOneBotMessage(messageId: number, groupId: number): void {
+  const database = getDatabase();
+  database.run('DELETE FROM sent_onebot_messages WHERE message_id = ? AND group_id = ?', [messageId, groupId]);
+}
+
+export function cleanupOldSentOneBotMessages(maxAgeDays: number = 7): number {
+  const database = getDatabase();
+  const cutoff = Date.now() - (maxAgeDays * 24 * 60 * 60 * 1000);
+  const result = database.run('DELETE FROM sent_onebot_messages WHERE sent_at < ?', [cutoff]);
+  return result.changes;
+}
+
 export interface PersistedApproval {
   approvalId: string;
   groupName: string;
   tweetJson: string;
   telegramMsgIds: string;
   discordMsgIds: string;
+  onebotMsgIds: string;
   createdAt: number;
   approved: number;
   approvedBy: string | null;
@@ -312,14 +364,15 @@ export function storePendingApproval(approval: {
   tweetJson: string;
   telegramMsgIds: Record<string, number>;
   discordMsgIds: Record<string, string>;
+  onebotMsgIds: Record<string, number>;
   createdAt: Date;
   approved: boolean;
   hasImage: boolean;
 }): void {
   const database = getDatabase();
   database.run(
-    `INSERT OR REPLACE INTO pending_approvals (approval_id, group_name, tweet_id, tweet_json, telegram_msg_ids, discord_msg_ids, created_at, approved, has_image)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT OR REPLACE INTO pending_approvals (approval_id, group_name, tweet_id, tweet_json, telegram_msg_ids, discord_msg_ids, onebot_msg_ids, created_at, approved, has_image)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       approval.approvalId,
       approval.groupName,
@@ -327,6 +380,7 @@ export function storePendingApproval(approval: {
       approval.tweetJson,
       JSON.stringify(approval.telegramMsgIds),
       JSON.stringify(approval.discordMsgIds),
+      JSON.stringify(approval.onebotMsgIds),
       approval.createdAt.getTime(),
       approval.approved ? 1 : 0,
       approval.hasImage ? 1 : 0,

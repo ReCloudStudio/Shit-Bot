@@ -64,6 +64,14 @@ export interface TwitterConfig {
   totpSecret?: string;
 }
 
+export interface OneBotConfig {
+  enabled: boolean;
+  url: string;
+  token?: string;
+  secret?: string;
+  reconnectInterval?: number;
+}
+
 export interface WebUIConfig {
   enabled: boolean;
   port: number;
@@ -84,6 +92,7 @@ export interface AppConfig {
   proxy?: string;
   discord: DiscordConfig;
   telegram: TelegramConfig;
+  onebot: OneBotConfig;
   twitter: TwitterConfig;
   webui: WebUIConfig;
   enableApproval: boolean;
@@ -114,6 +123,12 @@ export interface GroupApprovalConfig {
   telegramAdminChatIds?: string[];
   discordAdminChannelId?: string;
   discordApproveRoleId?: string;
+  onebotAdminGroupIds?: number[];
+}
+
+export interface GroupOneBotConfig {
+  groupId: number;
+  r14GroupId?: number;
 }
 
 export interface GroupConfig {
@@ -121,6 +136,7 @@ export interface GroupConfig {
   users?: UserConfig[];
   telegram?: GroupTelegramConfig;
   discord?: GroupDiscordConfig;
+  onebot?: GroupOneBotConfig;
   approval?: GroupApprovalConfig;
   blockedUsers?: string[];
 }

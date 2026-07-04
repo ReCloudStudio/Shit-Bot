@@ -54,6 +54,7 @@ function sanitizeConfigForAPI(cfg: AppConfig): any {
     groups: cfg.groups || [],
     discord: { ...cfg.discord, token: cfg.discord.token ? '••••••••' : '' },
     telegram: { ...cfg.telegram, token: cfg.telegram.token ? '••••••••' : '' },
+    onebot: { ...cfg.onebot, token: cfg.onebot?.token ? '••••••••' : '', secret: cfg.onebot?.secret ? '••••••••' : '' },
     twitter: {
       ...cfg.twitter,
       authToken: cfg.twitter.authToken ? '••••••••' : '',
@@ -142,6 +143,11 @@ async function handleAPI(req: IncomingMessage, res: http.ServerResponse, urlPath
       if (body.webui !== undefined) {
         cfg.webui = { ...cfg.webui, ...body.webui };
         if (body.webui.password && body.webui.password !== '••••••••') cfg.webui.password = body.webui.password;
+      }
+      if (body.onebot !== undefined) {
+        cfg.onebot = { ...cfg.onebot, ...body.onebot };
+        if (body.onebot.token && body.onebot.token !== '••••••••') cfg.onebot.token = body.onebot.token;
+        if (body.onebot.secret && body.onebot.secret !== '••••••••') cfg.onebot.secret = body.onebot.secret;
       }
       if (body.enableApproval !== undefined) cfg.enableApproval = body.enableApproval;
       if (body.sendAsImage !== undefined) cfg.sendAsImage = body.sendAsImage;
@@ -269,6 +275,7 @@ async function handleAPI(req: IncomingMessage, res: http.ServerResponse, urlPath
         pollInterval: cfg.pollIntervalMinutes,
         discordEnabled: cfg.discord.enabled,
         telegramEnabled: cfg.telegram.enabled,
+        onebotEnabled: cfg.onebot?.enabled ?? false,
         approvalEnabled: cfg.enableApproval,
       });
       return;
