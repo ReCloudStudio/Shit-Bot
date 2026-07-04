@@ -268,16 +268,20 @@ async function dispatchGroupDirect(
     }
   }
 
-  if (group.discord && config.discord.enabled && discordClientInstance) {
-    promises.push(
-      withTimeoutResult(
-        sendToDiscord(tweet, group.discord.channelId, true, imageBuf).then((m) => !!m),
-        90000,
-        `${group.name}/Discord`,
-        results,
-        tweet.url,
-      ),
-    );
+  if (group.discord && config.discord.enabled) {
+    if (discordClientInstance) {
+      promises.push(
+        withTimeoutResult(
+          sendToDiscord(tweet, group.discord.channelId, true, imageBuf).then((m) => !!m),
+          90000,
+          `${group.name}/Discord`,
+          results,
+          tweet.url,
+        ),
+      );
+    } else {
+      console.error(`[直发] 群组 ${group.name}: Discord 客户端未就绪, 跳过发送`);
+    }
   }
 
   await Promise.allSettled(promises);
@@ -411,7 +415,10 @@ export async function sendForApproval(tweet: ProcessedTweet): Promise<boolean> {
       }
     }
 
-    if (config.discord.enabled && group.discord && group.approval?.discordAdminChannelId && discordClientInstance) {
+    if (config.discord.enabled && group.discord && group.approval?.discordAdminChannelId) {
+      if (!discordClientInstance) {
+        console.error(`[审批] 群组 ${group.name}: Discord 客户端未就绪, 审批通知无法发送`);
+      } else {
       try {
         const channel = await discordClientInstance.channels.fetch(group.approval.discordAdminChannelId);
         if (channel && channel.isTextBased()) {
@@ -497,6 +504,7 @@ export async function sendForApproval(tweet: ProcessedTweet): Promise<boolean> {
         }
       } catch (error) {
         console.error(`[审批] 向 Discord 群组 ${group.name} 发送审批消息失败:`, error);
+      }
       }
     }
 
