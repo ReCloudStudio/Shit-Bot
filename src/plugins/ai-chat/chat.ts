@@ -1,3 +1,4 @@
+import { logger } from '@/logger';
 import { getAiConfig } from './config';
 import { buildTools, executeTool, OpenAITool, ToolContext } from './tools';
 import { buildProfile, logConversation, getRecentConversation } from './memory';
@@ -148,7 +149,7 @@ async function callApi(
       lastErr = e;
       const wait = Math.min(err.retryAfterMs ?? 600 * attempt, 10000);
       const reason = isTimeout ? '请求超时' : err.message;
-      console.warn(`[AI] 瞬时错误，${wait}ms 后重试 ${attempt}/${attemptCap - 1}: ${reason}`);
+      logger.warn("AI", `瞬时错误，${wait}ms 后重试 ${attempt}/${attemptCap - 1}: ${reason}`);
       await new Promise((r) => setTimeout(r, wait));
     } finally {
       clearTimeout(timeout);
@@ -207,7 +208,7 @@ async function loadImageDataUri(
     budget.remainingBytes -= bytes;
     return dataUri;
   } catch (e) {
-    console.warn(`[AI] 图片内联失败，跳过 (${url.slice(0, 80)}): ${(e as Error).message}`);
+    logger.warn("AI", `图片内联失败，跳过 (${url.slice(0, 80)}): ${(e as Error).message}`);
     return null;
   }
 }
@@ -311,7 +312,7 @@ export async function chatWithAI(userMessage: string, ctx?: ChatContext): Promis
         }
       }
     } catch (e) {
-      console.warn('[AI] 注入记忆/历史失败(忽略，本轮不带记忆):', (e as Error).message);
+      logger.warn("AI", '注入记忆/历史失败(忽略，本轮不带记忆):', (e as Error).message);
     }
   }
 
@@ -344,7 +345,7 @@ export async function chatWithAI(userMessage: string, ctx?: ChatContext): Promis
       messages.push({ role: 'user', content: [{ type: 'text', text: userText }, ...imgParts] });
     } else {
       // 一张都没下成：用纯文本并明确告知"有图但加载不了"，杜绝模型反过来说用户没发图
-      console.warn(`[AI] 用户发送的 ${imageUrls.length} 张图片全部内联失败，降级为纯文本`);
+      logger.warn("AI", `用户发送的 ${imageUrls.length} 张图片全部内联失败，降级为纯文本`);
       messages.push({
         role: 'user',
         content:
@@ -363,7 +364,7 @@ export async function chatWithAI(userMessage: string, ctx?: ChatContext): Promis
         : userMessage || (imageUrls.length ? '[发送了图片]' : '');
       logConversation(platform, username, 'user', logText);
     } catch (e) {
-      console.warn('[AI] 记录用户消息到记忆失败(忽略):', (e as Error).message);
+      logger.warn("AI", '记录用户消息到记忆失败(忽略):', (e as Error).message);
     }
   }
 
@@ -398,8 +399,9 @@ export async function chatWithAI(userMessage: string, ctx?: ChatContext): Promis
   };
   let useTools = tools.length > 0;
 
-  console.log(
-    `[AI] 请求: model=${cfg.model}, tools=${useTools ? tools.length : 0}, memory=${memoryOn}, user=${username || displayName}`
+  logger.info(
+    "AI",
+    `请求: model=${cfg.model}, tools=${useTools ? tools.length : 0}, memory=${memoryOn}, user=${username || displayName}`
   );
 
   try {
@@ -418,7 +420,7 @@ export async function chatWithAI(userMessage: string, ctx?: ChatContext): Promis
           err.status === 400 &&
           /tool|function/i.test(err.body || err.message || '')
         ) {
-          console.warn('[AI] 模型疑似不支持工具调用，降级为普通对话');
+          logger.warn("AI", '模型疑似不支持工具调用，降级为普通对话');
           useTools = false;
           stripToolMessages(messages);
           try {
@@ -429,8 +431,9 @@ export async function chatWithAI(userMessage: string, ctx?: ChatContext): Promis
           }
         } else if (messagesHaveImages(messages)) {
           // 带图请求失败：一律先去掉图片用纯文本重试，绝不让单张图(失效/防盗链/被网关拒)终结整条回复
-          console.warn(
-            `[AI] 带图请求失败(${err.status ?? '?'}${isImageFetchError(err) ? '/上游拉取图片失败' : ''})，去掉图片改用纯文本重试`
+          logger.warn(
+            "AI",
+            `带图请求失败(${err.status ?? '?'}${isImageFetchError(err) ? '/上游拉取图片失败' : ''})，去掉图片改用纯文本重试`
           );
           stripImageParts(messages);
           try {
@@ -443,7 +446,7 @@ export async function chatWithAI(userMessage: string, ctx?: ChatContext): Promis
         } else {
           // 中途瞬时失败但已积累工具结果：跳出去走收尾降级，不要让一轮抖动终结整条回复
           if (iter > 0) {
-            console.warn(`[AI] 工具循环中途请求失败(${err.status ?? '?'})，转入收尾降级: ${err.message}`);
+            logger.warn("AI", `工具循环中途请求失败(${err.status ?? '?'})，转入收尾降级: ${err.message}`);
             break;
           }
           throw e;
@@ -456,13 +459,13 @@ export async function chatWithAI(userMessage: string, ctx?: ChatContext): Promis
         if (data.error?.message) {
           throw new Error(`API 返回错误: ${data.error.message}`);
         }
-        console.warn(`[AI] 响应无有效 choices (finish_reason=${choice?.finish_reason || 'n/a'}): ${JSON.stringify(data).slice(0, 500)}`);
+        logger.warn("AI", `响应无有效 choices (finish_reason=${choice?.finish_reason || 'n/a'}): ${JSON.stringify(data).slice(0, 500)}`);
         break;
       }
 
       const finishReason = choice?.finish_reason || '';
       if (finishReason === 'length') {
-        console.warn(`[AI] 输出达到 max_tokens(${cfg.maxTokens}) 被截断 (finish_reason=length)`);
+        logger.warn("AI", `输出达到 max_tokens(${cfg.maxTokens}) 被截断 (finish_reason=length)`);
       }
 
       const toolCalls = Array.isArray(msg.tool_calls) ? msg.tool_calls : [];
@@ -483,7 +486,7 @@ export async function chatWithAI(userMessage: string, ctx?: ChatContext): Promis
               : fn.arguments == null
                 ? ''
                 : JSON.stringify(fn.arguments);
-          console.log(`[AI] 工具调用: ${name} ${argStr.slice(0, 120)}`);
+          logger.info("AI", `工具调用: ${name} ${argStr.slice(0, 120)}`);
           const result = await executeTool(name, argStr, toolCtx);
           const safeResult =
             result.length > MAX_TOOL_RESULT
@@ -513,7 +516,7 @@ export async function chatWithAI(userMessage: string, ctx?: ChatContext): Promis
       finalText = contentToText(msg.content).trim();
       finalFinishReason = finishReason;
       if (!finalText) {
-        console.warn(`[AI] 本轮返回空文本 (finish_reason=${finishReason || 'n/a'}, tool_calls=${toolCalls.length}, lastIter=${lastIter})`);
+        logger.warn("AI", `本轮返回空文本 (finish_reason=${finishReason || 'n/a'}, tool_calls=${toolCalls.length}, lastIter=${lastIter})`);
       }
       break;
     }
@@ -529,10 +532,10 @@ export async function chatWithAI(userMessage: string, ctx?: ChatContext): Promis
         finalText = contentToText(data.choices?.[0]?.message?.content).trim();
         finalFinishReason = data.choices?.[0]?.finish_reason || '';
         if (!finalText) {
-          console.warn(`[AI] 收尾(去掉工具)仍为空 (finish_reason=${data.choices?.[0]?.finish_reason || 'n/a'})`);
+          logger.warn("AI", `收尾(去掉工具)仍为空 (finish_reason=${data.choices?.[0]?.finish_reason || 'n/a'})`);
         }
       } catch (e) {
-        console.warn('[AI] 收尾(去掉工具)请求失败:', (e as Error).message);
+        logger.warn("AI", '收尾(去掉工具)请求失败:', (e as Error).message);
         if (messagesHaveImages(messages)) {
           // 收尾这步也可能被坏图卡住：去掉图片再纯文本试一次，别直接给非答复
           stripImageParts(messages);
@@ -541,7 +544,7 @@ export async function chatWithAI(userMessage: string, ctx?: ChatContext): Promis
             finalText = contentToText(d.choices?.[0]?.message?.content).trim();
             finalFinishReason = d.choices?.[0]?.finish_reason || '';
           } catch (e2) {
-            console.warn('[AI] 收尾去图重试仍失败:', (e2 as Error).message);
+            logger.warn("AI", '收尾去图重试仍失败:', (e2 as Error).message);
           }
         }
       }
@@ -562,7 +565,7 @@ export async function chatWithAI(userMessage: string, ctx?: ChatContext): Promis
       // 非法 JSON 且这段不是被截断的 -> 要求模型重新生成 (最多 2 次)
       if (!parsed && !candidateTruncated) {
         for (let r = 0; r < 2 && !parsed; r++) {
-          console.warn('[AI] 最终回复不是合法 JSON，要求重新生成');
+          logger.warn("AI", '最终回复不是合法 JSON，要求重新生成');
           messages.push({
             role: 'user',
             content:
@@ -576,7 +579,7 @@ export async function chatWithAI(userMessage: string, ctx?: ChatContext): Promis
             parsed = parseReplyJson(candidate);
             if (!parsed && candidateTruncated) break;
           } catch (e) {
-            console.warn('[AI] 重新生成失败:', (e as Error).message);
+            logger.warn("AI", '重新生成失败:', (e as Error).message);
             break;
           }
         }
@@ -602,7 +605,7 @@ export async function chatWithAI(userMessage: string, ctx?: ChatContext): Promis
       try {
         logConversation(platform, username, 'assistant', reply);
       } catch (e) {
-        console.warn('[AI] 记录回复到记忆失败(忽略):', (e as Error).message);
+        logger.warn("AI", '记录回复到记忆失败(忽略):', (e as Error).message);
       }
     }
 
@@ -613,11 +616,11 @@ export async function chatWithAI(userMessage: string, ctx?: ChatContext): Promis
     return { reply, reactions };
   } catch (error) {
     if ((error as Error).name === 'AbortError') {
-      console.error('AI API 请求超时');
+      logger.error("AI", 'AI API 请求超时');
       return { reply: 'AI 响应超时，请稍后再试。', reactions: [] };
     }
     const err = error as Error & { status?: number };
-    console.error('AI API 请求失败:', err.message);
+    logger.error("AI", 'AI API 请求失败:', err.message);
     if (err.status) {
       return { reply: `AI 服务返回错误 (${err.status})。请检查 API 配置。`, reactions: [] };
     }

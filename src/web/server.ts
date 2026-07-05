@@ -6,6 +6,7 @@ import { getRecentTweets, getSentCount } from '@/storage';
 import { getLoadedPlugins } from '@/plugins';
 import { sendForApproval } from '@/approval';
 import { AppConfig, GroupConfig, ProcessedTweet } from '@/types';
+import { logger } from '@/logger';
 
 interface IncomingMessage extends http.IncomingMessage {
   body?: string;
@@ -325,7 +326,7 @@ async function handleAPI(req: IncomingMessage, res: http.ServerResponse, urlPath
         _skipUserFilter: true,
       };
 
-      console.log(`[调试] 手动发送测试推文: ${tweet.url}${targetTag ? ` (目标: ${targetTag})` : ''}${useMockImage ? ' (Mock 图片)' : ''}`);
+      logger.info("Web", `[调试] 手动发送测试推文: ${tweet.url}${targetTag ? ` (目标: ${targetTag})` : ''}${useMockImage ? ' (Mock 图片)' : ''}`);
 
       if (useMockImage) {
         const { renderMockImage } = await import('@/renderer');
@@ -357,7 +358,7 @@ async function handleAPI(req: IncomingMessage, res: http.ServerResponse, urlPath
         return;
       }
 
-      console.log(`[调试] API 审批: ${reject ? '拒绝' : '批准'} ${approvalId}`);
+      logger.info("Web", `[调试] API 审批: ${reject ? '拒绝' : '批准'} ${approvalId}`);
       const { handleOneBotApproval } = await import('@/approval');
       const groupId = body.groupId || 0;
       await handleOneBotApproval(approvalId, 0, groupId, reject);
@@ -367,7 +368,7 @@ async function handleAPI(req: IncomingMessage, res: http.ServerResponse, urlPath
 
     sendError(res, '未找到', 404);
   } catch (error) {
-    console.error('API 错误:', error);
+    logger.error("Web", 'API 错误:', error);
     sendError(res, '服务器内部错误', 500);
   }
 }
@@ -376,7 +377,7 @@ export function startWebServer(): http.Server {
   const cfg = getConfig();
 
   if (!cfg.webui.enabled) {
-      console.log('WebUI 已在配置中禁用');
+      logger.info("Web", 'WebUI 已在配置中禁用');
     const dummy = http.createServer();
     return dummy;
   }
@@ -400,9 +401,9 @@ export function startWebServer(): http.Server {
   });
 
   server.listen(cfg.webui.port, cfg.webui.host, () => {
-  console.log(`\nWebUI 访问地址: http://${cfg.webui.host}:${cfg.webui.port}`);
+  logger.info("Web", `\nWebUI 访问地址: http://${cfg.webui.host}:${cfg.webui.port}`);
   if (cfg.webui.password) {
-    console.log('WebUI 密码保护已启用');
+    logger.info("Web", 'WebUI 密码保护已启用');
     }
   });
 

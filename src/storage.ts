@@ -1,6 +1,7 @@
 import { Database } from 'bun:sqlite';
 import * as path from 'path';
 import * as fs from 'fs';
+import { logger } from '@/logger';
 
 function resolveDataDir(): string {
   const cwd = path.join(process.cwd(), 'data');
@@ -123,7 +124,7 @@ export function initDatabase(): void {
   `);
   db.run('CREATE INDEX IF NOT EXISTS idx_dead_letters_tweet_id ON dead_letters(tweet_id)');
 
-  console.log(`数据库已初始化: ${DB_PATH}`);
+  logger.info('Storage', `数据库已初始化: ${DB_PATH}`);
 }
 
 export function getDatabase(): Database {
@@ -175,7 +176,7 @@ export function cleanupOldRecords(maxAgeDays: number = 30): number {
   const result = database.run('DELETE FROM sent_tweets WHERE sent_at < ?', [cutoff]);
 
   if (result.changes > 0) {
-    console.log(`已清理 ${result.changes} 条旧记录`);
+    logger.info('Storage', `已清理 ${result.changes} 条旧记录`);
   }
 
   return result.changes;
@@ -219,7 +220,7 @@ export function cleanupExpiredImages(maxAgeMinutes: number = 60): number {
   const result = database.run('DELETE FROM image_cache WHERE created_at < ?', [cutoff]);
 
   if (result.changes > 0) {
-    console.log(`已清理 ${result.changes} 条过期缓存图片`);
+    logger.info('Storage', `已清理 ${result.changes} 条过期缓存图片`);
   }
 
   return result.changes;
@@ -409,7 +410,7 @@ export function cleanupCorruptedApprovals(): number {
     `DELETE FROM pending_approvals WHERE approval_id IS NULL OR approval_id = '' OR tweet_json = 'undefined' OR tweet_json IS NULL`
   );
   if (result.changes > 0) {
-    console.log(`已清理 ${result.changes} 条损坏的审批记录`);
+    logger.info('Storage', `已清理 ${result.changes} 条损坏的审批记录`);
   }
   return result.changes;
 }
@@ -448,6 +449,6 @@ export function closeDatabase(): void {
   if (db) {
     db.close();
     db = null;
-    console.log('数据库已关闭');
+    logger.info('Storage', '数据库已关闭');
   }
 }

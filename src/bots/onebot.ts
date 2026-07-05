@@ -5,6 +5,7 @@ import { formatContentForPlatform } from '@/filters';
 import { renderTweetImage } from '@/renderer';
 import { storeSentOneBotMessage } from '@/storage';
 import { getCachedImage } from '@/storage';
+import { logger } from '@/logger';
 
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -97,7 +98,7 @@ export async function sendToOneBot(
       return result?.message_id || null;
     }
   } catch (error) {
-    console.error(`[OneBot] 发送到群组 ${groupId} 失败:`, error);
+    logger.error("OneBot", `发送到群组 ${groupId} 失败:`, error);
     return null;
   }
 }
@@ -110,7 +111,7 @@ export async function sendTextToOneBot(text: string, groupId: number): Promise<n
     });
     return result?.message_id || null;
   } catch (error) {
-    console.error(`[OneBot] 发送文本到群组 ${groupId} 失败:`, error);
+    logger.error("OneBot", `发送文本到群组 ${groupId} 失败:`, error);
     return null;
   }
 }
@@ -120,7 +121,7 @@ export async function deleteOneBotMessage(messageId: number, groupId: number): P
     await sendAction('delete_msg', { message_id: messageId });
     return true;
   } catch (error) {
-    console.error(`[OneBot] 撤回消息 ${messageId} 失败:`, error);
+    logger.error("OneBot", `撤回消息 ${messageId} 失败:`, error);
     return false;
   }
 }
@@ -130,7 +131,7 @@ function connect(): void {
   if (!config.onebot.enabled || !config.onebot.url) return;
 
   const wsUrl = config.onebot.url.replace(/^http/, 'ws');
-  console.log(`[OneBot] 正在连接 ${wsUrl}`);
+  logger.info("OneBot", `正在连接 ${wsUrl}`);
 
   const wsOptions: Record<string, any> = {};
   if (!config.onebot.wsSslVerify) {
@@ -143,7 +144,7 @@ function connect(): void {
 
   ws.on('open', () => {
     connected = true;
-    console.log('[OneBot] WebSocket 已连接');
+    logger.info("OneBot", 'WebSocket 已连接');
 
     if (config.onebot.secret) {
       const auth = { type: 'signal', op: 1, body: { token: config.onebot.secret } };
@@ -194,12 +195,12 @@ function connect(): void {
       reject(new Error('WebSocket 已断开'));
     }
     pendingActions.clear();
-    console.log('[OneBot] WebSocket 已断开');
+    logger.info("OneBot", 'WebSocket 已断开');
     scheduleReconnect();
   });
 
   ws.on('error', (err) => {
-    console.error('[OneBot] WebSocket 错误:', err.message);
+    logger.error("OneBot", 'WebSocket 错误:', err.message);
   });
 }
 
@@ -215,12 +216,12 @@ function scheduleReconnect(): void {
 export async function initOneBot(): Promise<boolean> {
   const config = getConfig();
   if (!config.onebot.enabled) {
-    console.log('[OneBot] 已在配置中禁用');
+    logger.info("OneBot", '已在配置中禁用');
     return false;
   }
 
   if (!config.onebot.url) {
-    console.error('[OneBot] 未配置 URL');
+    logger.error("OneBot", '未配置 URL');
     return false;
   }
 
@@ -254,5 +255,5 @@ export async function shutdownOneBot(): Promise<void> {
     ws = null;
   }
   connected = false;
-  console.log('[OneBot] 已断开连接');
+  logger.info("OneBot", '已断开连接');
 }

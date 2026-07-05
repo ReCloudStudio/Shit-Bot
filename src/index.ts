@@ -13,27 +13,15 @@ import { initTwitterClient, loginWithCredentials } from '@/twitter';
 import { startWebServer } from '@/web/server';
 import { loadPlugins, executeHook, executeTweetHook, getPluginCronJobs, shutdownPlugins, setDiscordClientProvider, setTelegramBotProvider } from '@/plugins';
 import { Tweet } from '@/types';
-
-const _log = console.log.bind(console);
-const _warn = console.warn.bind(console);
-const _error = console.error.bind(console);
-const ts = () => {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `[${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}]`;
-};
-
-console.log = (...args: any[]) => _log(ts(), ...args);
-console.warn = (...args: any[]) => _warn(ts(), ...args);
-console.error = (...args: any[]) => _error(ts(), ...args);
+import { logger } from '@/logger';
 
 // 进程级兜底：常驻 bot 以 I/O 为主，单个游离的 Promise 拒绝/未捕获异常只记录、不退出，
 // 避免一条边缘消息或某个事件回调的异常把整个进程(Discord/Telegram/轮询/审批/WebUI)拖垮。
 process.on('unhandledRejection', (reason) => {
-  console.error('未处理的 Promise 拒绝(已忽略，避免进程退出):', reason);
+  logger.error("Main", '未处理的 Promise 拒绝(已忽略，避免进程退出):', reason);
 });
 process.on('uncaughtException', (err) => {
-  console.error('未捕获异常(已忽略，避免进程退出):', err);
+  logger.error("Main", '未捕获异常(已忽略，避免进程退出):', err);
 });
 
 let isRunning = false;
@@ -51,7 +39,7 @@ async function processAndSendTweets(username: string, tweets: Tweet[]): Promise<
   }
 
   if (!userConfig) {
-    console.warn(`未找到用户 @${username} 的配置`);
+    logger.warn("Main", `未找到用户 @${username} 的配置`);
     return;
   }
 
@@ -69,7 +57,7 @@ async function processAndSendTweets(username: string, tweets: Tweet[]): Promise<
     return;
   }
 
-  console.log(`处理 @${username} 的 ${passed.length} 条推文`);
+  logger.info("Main", `处理 @${username} 的 ${passed.length} 条推文`);
 
   const configForApproval = config.enableApproval;
 
@@ -95,7 +83,7 @@ async function processAndSendTweets(username: string, tweets: Tweet[]): Promise<
 
 async function pollAndSend(): Promise<void> {
   if (isRunning) {
-    console.log('上一轮轮询仍在进行, 跳过...');
+    logger.info("Main", '上一轮轮询仍在进行, 跳过...');
     return;
   }
 
@@ -103,7 +91,7 @@ async function pollAndSend(): Promise<void> {
   const startTime = Date.now();
 
   try {
-    console.log(`\n[${new Date().toISOString()}] 开始轮询...`);
+    logger.info("Main", `\n[${new Date().toISOString()}] 开始轮询...`);
 
     await executeHook('onBeforePoll');
 
@@ -123,7 +111,7 @@ async function pollAndSend(): Promise<void> {
     }
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
-    console.log(`轮询完成, 耗时 ${elapsed}s`);
+    logger.info("Main", `轮询完成, 耗时 ${elapsed}s`);
 
     await executeHook('onAfterPoll', {
       allTweets,
@@ -134,20 +122,20 @@ async function pollAndSend(): Promise<void> {
       elapsedSeconds: parseFloat(elapsed),
     });
   } catch (error) {
-    console.error('轮询出错:', error);
+    logger.error("Main", '轮询出错:', error);
   } finally {
     isRunning = false;
   }
 }
 
 async function start(): Promise<void> {
-  console.log('=== X/Twitter 监控 Bot ===\n');
+  logger.info("Main", '=== X/Twitter 监控 Bot ===\n');
 
   try {
     loadConfig();
-    console.log('配置已加载');
+    logger.info("Main", '配置已加载');
   } catch (error) {
-    console.error('配置加载失败:', error);
+    logger.error("Main", '配置加载失败:', error);
     process.exit(1);
   }
 
@@ -155,7 +143,7 @@ async function start(): Promise<void> {
   if (proxyUrl) {
     process.env.HTTPS_PROXY = proxyUrl;
     process.env.HTTP_PROXY = proxyUrl;
-    console.log(`全局代理已设置: ${proxyUrl}`);
+    logger.info("Main", `全局代理已设置: ${proxyUrl}`);
   }
 
   await loadPlugins();
@@ -167,35 +155,35 @@ async function start(): Promise<void> {
   const config = getConfig();
 
   if (config.sendAsImage) {
-    console.log('正在初始化图片渲染器...');
+    logger.info("Main", '正在初始化图片渲染器...');
     const rendererReady = await initRenderer();
     if (!rendererReady) {
-      console.warn('图片渲染器初始化失败, 将以文本形式发送');
+      logger.warn("Main", '图片渲染器初始化失败, 将以文本形式发送');
     }
   }
 
   if (config.twitter.enabled !== false) {
-    console.log('正在初始化 Twitter 客户端...');
+    logger.info("Main", '正在初始化 Twitter 客户端...');
     let twitterReady = await initTwitterClient();
 
     if (!twitterReady && config.twitter.username && config.twitter.password) {
-      console.log('Cookie 无效, 尝试使用凭据登录...');
+      logger.info("Main", 'Cookie 无效, 尝试使用凭据登录...');
       try {
         const result = await loginWithCredentials();
         config.twitter.authToken = result.authToken;
         config.twitter.ct0 = result.ct0;
         twitterReady = await initTwitterClient();
       } catch (error) {
-        console.error('登录失败:', error);
+        logger.error("Main", '登录失败:', error);
       }
     }
 
     if (!twitterReady) {
-      console.error('Twitter 客户端初始化失败, 退出程序.');
+      logger.error("Main", 'Twitter 客户端初始化失败, 退出程序.');
       process.exit(1);
     }
   } else {
-    console.log('Twitter 推文监控已禁用 (twitter.enabled: false)');
+    logger.info("Main", 'Twitter 推文监控已禁用 (twitter.enabled: false)');
   }
 
   let discordReady = false;
@@ -204,7 +192,7 @@ async function start(): Promise<void> {
   if (config.discord.enabled) {
     discordReady = await initDiscord();
     if (!discordReady) {
-      console.warn('Discord 初始化失败');
+      logger.warn("Main", 'Discord 初始化失败');
     }
   }
 
@@ -214,7 +202,7 @@ async function start(): Promise<void> {
   if (config.telegram.enabled) {
     telegramReady = await initTelegram();
     if (!telegramReady) {
-      console.warn('Telegram 初始化失败');
+      logger.warn("Main", 'Telegram 初始化失败');
     } else {
       const telegramBot = getTelegramBot();
       if (telegramBot) {
@@ -226,9 +214,9 @@ async function start(): Promise<void> {
         telegramBot.action(/^recall_/, handleTelegramRecall);
         
         telegramBot.launch().catch((e) =>
-          console.error('Telegram 轮询启动/运行失败:', (e as Error)?.message || e)
+          logger.error("Main", 'Telegram 轮询启动/运行失败:', (e as Error)?.message || e)
         );
-        console.log('Telegram bot 已启动, 审批处理器已注册');
+        logger.info("Main", 'Telegram bot 已启动, 审批处理器已注册');
       }
     }
   }
@@ -264,10 +252,10 @@ async function start(): Promise<void> {
             await handleDiscordApproval(interaction);
           }
         } catch (e) {
-          console.error('[交互处理] 未捕获异常(已忽略):', (e as Error)?.message || e);
+          logger.error("Main", '[交互处理] 未捕获异常(已忽略):', (e as Error)?.message || e);
         }
       });
-      console.log('Discord 审批处理器已注册');
+      logger.info("Main", 'Discord 审批处理器已注册');
     }
   }
 
@@ -281,18 +269,18 @@ async function start(): Promise<void> {
         if ((approvalMatch || rejectMatch) && message.group_id) {
           const approvalId = (approvalMatch || rejectMatch)![1].trim();
           const reject = !!rejectMatch;
-          console.log(`[OneBot] 收到${reject ? '拒绝' : '批准'}指令: ${approvalId}`);
+          logger.info("Main", `收到${reject ? '拒绝' : '批准'}指令: ${approvalId}`);
           const { handleOneBotApproval } = await import('@/approval');
           await handleOneBotApproval(approvalId, message.user_id, message.group_id, reject);
         }
       });
-      console.log('OneBot 审批处理器已注册');
+      logger.info("Main", 'OneBot 审批处理器已注册');
     }
   }
 
   const anyBotEnabled = (config.discord.enabled && discordReady) || (config.telegram.enabled && telegramReady) || (config.onebot.enabled && isOneBotConnected());
   if (!anyBotEnabled) {
-    console.error('所有 Bot 均初始化失败, 退出程序.');
+    logger.error("Main", '所有 Bot 均初始化失败, 退出程序.');
     process.exit(1);
   }
 
@@ -301,7 +289,7 @@ async function start(): Promise<void> {
   webServer = startWebServer();
 
   if (config.twitter.enabled === false) {
-    console.log('\n仅运行 AI 聊天 / WebUI (Twitter 推文监控已禁用)。');
+    logger.info("Main", '\n仅运行 AI 聊天 / WebUI (Twitter 推文监控已禁用)。');
     return;
   }
 
@@ -313,32 +301,32 @@ async function start(): Promise<void> {
     }
   }
 
-  console.log(`\n正在监控 ${uniqueUsers.size} 个用户:`);
+  logger.info("Main", `\n正在监控 ${uniqueUsers.size} 个用户:`);
   for (const username of uniqueUsers.keys()) {
-    console.log(`  - @${username}`);
+    logger.info("Main", `  - @${username}`);
   }
 
-  console.log(`\n轮询间隔: ${config.pollIntervalMinutes} 分钟`);
+  logger.info("Main", `\n轮询间隔: ${config.pollIntervalMinutes} 分钟`);
 
   if (config.debugMode) {
-    console.log('⚠️  调试模式: 跳过自动轮询, 仅通过 API 手动发送');
+    logger.info("Main", '⚠️  调试模式: 跳过自动轮询, 仅通过 API 手动发送');
   } else {
-    console.log('开始首次轮询...\n');
+    logger.info("Main", '开始首次轮询...\n');
     await pollAndSend();
 
     const cronExpression = `*/${config.pollIntervalMinutes} * * * *`;
     cronJob = cron.schedule(cronExpression, pollAndSend);
-    console.log(`定时任务已设置: ${cronExpression}`);
+    logger.info("Main", `定时任务已设置: ${cronExpression}`);
   }
 
   for (const pc of getPluginCronJobs()) {
     cron.schedule(pc.expression, pc.handler);
-    console.log(`[插件] 已注册定时任务: ${pc.expression}`);
+    logger.info("Main", `[插件] 已注册定时任务: ${pc.expression}`);
   }
 }
 
 async function shutdown(): Promise<void> {
-  console.log('\n正在关闭...');
+  logger.info("Main", '\n正在关闭...');
 
   if (cronJob) {
     cronJob.stop();
@@ -356,7 +344,7 @@ async function shutdown(): Promise<void> {
   await shutdownPlugins();
   closeDatabase();
 
-  console.log('关闭完成');
+  logger.info("Main", '关闭完成');
   process.exit(0);
 }
 
@@ -364,6 +352,6 @@ process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
 start().catch((error) => {
-  console.error('致命错误:', error);
+  logger.error("Main", '致命错误:', error);
   process.exit(1);
 });

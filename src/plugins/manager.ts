@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
+import { logger } from '@/logger';
 import { getConfig } from '@/config';
 import { getDatabase } from '@/storage';
 import {
@@ -30,9 +31,9 @@ export function setTelegramBotProvider(fn: () => any): void {
 function createLogger(name: string): PluginLogger {
   const prefix = `[插件/${name}]`;
   return {
-    info: (...args: any[]) => console.log(prefix, ...args),
-    warn: (...args: any[]) => console.warn(prefix, ...args),
-    error: (...args: any[]) => console.error(prefix, ...args),
+    info: (...args: any[]) => logger.info("Plugin", prefix, ...args),
+    warn: (...args: any[]) => logger.warn("Plugin", prefix, ...args),
+    error: (...args: any[]) => logger.error("Plugin", prefix, ...args),
   };
 }
 
@@ -82,7 +83,7 @@ async function loadPlugin(dirPath: string): Promise<LoadedPlugin | null> {
     const def = (mod.default || mod) as PluginDefinition;
 
     if (!def.manifest || !def.manifest.name) {
-      console.warn(`[插件] 跳过分目录 ${name}: 缺少 manifest.name`);
+      logger.warn("Plugin", `跳过分目录 ${name}: 缺少 manifest.name`);
       return null;
     }
 
@@ -93,7 +94,7 @@ async function loadPlugin(dirPath: string): Promise<LoadedPlugin | null> {
       config: getPluginConfig(def.manifest.name),
     };
   } catch (err) {
-    console.error(`[插件] 加载插件 ${name} 失败:`, err);
+    logger.error("Plugin", `加载插件 ${name} 失败:`, err);
     return null;
   }
 }
@@ -131,7 +132,7 @@ async function syncGithubPlugin(entry: PluginConfigEntry): Promise<string | null
 
   const parsed = parseGithubRepo(entry.github);
   if (!parsed) {
-    console.error(`[插件] 无效的 GitHub 仓库格式: ${entry.github} (应为 owner/repo)`);
+    logger.error("Plugin", `无效的 GitHub 仓库格式: ${entry.github} (应为 owner/repo)`);
     return null;
   }
 
@@ -142,16 +143,16 @@ async function syncGithubPlugin(entry: PluginConfigEntry): Promise<string | null
 
   try {
     if (fs.existsSync(targetDir)) {
-      console.log(`[插件] 更新 GitHub 插件 ${entry.name} (${cloneUrl}#${ref})...`);
+      logger.info("Plugin", `更新 GitHub 插件 ${entry.name} (${cloneUrl}#${ref})...`);
       execSync(`git -C ${targetDir} fetch origin ${ref} --depth 1`, { stdio: 'pipe' });
       execSync(`git -C ${targetDir} reset --hard FETCH_HEAD`, { stdio: 'pipe' });
     } else {
-      console.log(`[插件] 克隆 GitHub 插件 ${entry.name} (${cloneUrl}#${ref})...`);
+      logger.info("Plugin", `克隆 GitHub 插件 ${entry.name} (${cloneUrl}#${ref})...`);
       execSync(`git clone ${cloneUrl} ${targetDir} --branch ${ref} --depth 1`, { stdio: 'pipe' });
     }
     return targetDir;
   } catch (err) {
-    console.error(`[插件] 同步 GitHub 插件 ${entry.name} 失败:`, (err as Error).message);
+    logger.error("Plugin", `同步 GitHub 插件 ${entry.name} 失败:`, (err as Error).message);
     return null;
   }
 }
@@ -197,7 +198,7 @@ export async function loadPlugins(): Promise<void> {
   for (const plugin of discovered) {
     const config = plugin.config;
     if (config && !config.enabled) {
-      console.log(`[插件] 插件 ${plugin.manifest.name} 已禁用，跳过`);
+      logger.info("Plugin", `插件 ${plugin.manifest.name} 已禁用，跳过`);
       continue;
     }
 
@@ -207,7 +208,7 @@ export async function loadPlugins(): Promise<void> {
       try {
         await plugin.init(getPluginAPI(plugin.manifest.name));
       } catch (err) {
-        console.error(`[插件] 插件 ${plugin.manifest.name} init 失败:`, err);
+        logger.error("Plugin", `插件 ${plugin.manifest.name} init 失败:`, err);
       }
     }
 
@@ -215,7 +216,7 @@ export async function loadPlugins(): Promise<void> {
   }
 
   if (loaded > 0) {
-    console.log(`[插件] 已加载 ${loaded} 个插件 (来源: 内置 + ${resolveExternalDirs().length} 个外部目录)`);
+    logger.info("Plugin", `已加载 ${loaded} 个插件 (来源: 内置 + ${resolveExternalDirs().length} 个外部目录)`);
   }
 
   initialized = true;
@@ -238,7 +239,7 @@ async function callHook<T>(hookName: string, fns: Array<(...args: any[]) => T | 
     try {
       await fn(...args);
     } catch (err) {
-      console.error(`[插件] 钩子 ${hookName} 执行失败:`, err);
+      logger.error("Plugin", `钩子 ${hookName} 执行失败:`, err);
     }
   }
 }
@@ -271,7 +272,7 @@ export async function executeTweetHook(tweet: any): Promise<any> {
       if (result === null) return null;
       if (result !== undefined) current = result;
     } catch (err) {
-      console.error(`[插件] 插件 ${plugin.manifest.name} onTweetReceived 失败:`, err);
+      logger.error("Plugin", `插件 ${plugin.manifest.name} onTweetReceived 失败:`, err);
     }
   }
   return current;
@@ -287,7 +288,7 @@ export async function executeBeforeSendHook(tweet: any, group: any): Promise<any
       if (result === null) return null;
       if (result !== undefined) current = result;
     } catch (err) {
-      console.error(`[插件] 插件 ${plugin.manifest.name} onBeforeTweetSend 失败:`, err);
+      logger.error("Plugin", `插件 ${plugin.manifest.name} onBeforeTweetSend 失败:`, err);
     }
   }
   return current;
@@ -302,7 +303,7 @@ export async function executeDiscordMessageHook(message: any): Promise<boolean> 
       const result = await hook(message);
       if (result === true) claimed = true;
     } catch (err) {
-      console.error(`[插件] 插件 ${plugin.manifest.name} onDiscordMessage 失败:`, err);
+      logger.error("Plugin", `插件 ${plugin.manifest.name} onDiscordMessage 失败:`, err);
     }
   }
   return claimed;
@@ -317,7 +318,7 @@ export async function executeTelegramMessageHook(ctx: any): Promise<boolean> {
       const result = await hook(ctx);
       if (result === true) claimed = true;
     } catch (err) {
-      console.error(`[插件] 插件 ${plugin.manifest.name} onTelegramMessage 失败:`, err);
+      logger.error("Plugin", `插件 ${plugin.manifest.name} onTelegramMessage 失败:`, err);
     }
   }
   return claimed;
@@ -333,7 +334,7 @@ export async function executeBeforeApprovalHook(tweet: any, group: any): Promise
       if (result === null) return null;
       if (result !== undefined) current = result;
     } catch (err) {
-      console.error(`[插件] 插件 ${plugin.manifest.name} onBeforeApproval 失败:`, err);
+      logger.error("Plugin", `插件 ${plugin.manifest.name} onBeforeApproval 失败:`, err);
     }
   }
   return current;
@@ -350,7 +351,7 @@ export async function getPluginDiscordCommands(): Promise<any[]> {
         commands.push(...result);
       }
     } catch (err) {
-      console.error(`[插件] 插件 ${plugin.manifest.name} onDiscordCommands 失败:`, err);
+      logger.error("Plugin", `插件 ${plugin.manifest.name} onDiscordCommands 失败:`, err);
     }
   }
   return commands;
@@ -361,5 +362,5 @@ export async function shutdownPlugins(): Promise<void> {
   plugins.clear();
   cronJobs.length = 0;
   initialized = false;
-  console.log('[插件] 所有插件已关闭');
+  logger.info("Plugin", '所有插件已关闭');
 }

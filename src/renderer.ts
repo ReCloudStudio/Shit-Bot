@@ -2,13 +2,14 @@ import sharp from 'sharp';
 import { ProcessedTweet } from '@/types';
 import { getConfig } from '@/config';
 import { fetchTweetImage } from '@/xToImageApi';
+import { logger } from '@/logger';
 
 export async function initRenderer(): Promise<boolean> {
   const config = getConfig();
   if (config.xToImageApiUrl) {
-    console.log(`X to Image API 已配置: ${config.xToImageApiUrl}`);
+    logger.info("Renderer", `X to Image API 已配置: ${config.xToImageApiUrl}`);
   } else {
-    console.log('未配置 X to Image API, 图片渲染已禁用');
+    logger.info("Renderer", '未配置 X to Image API, 图片渲染已禁用');
   }
   return true;
 }
@@ -78,5 +79,5 @@ async function svgToPng(svg: Buffer, width: number, height: number): Promise<Buf
 }
 
 export async function shutdownRenderer(): Promise<void> {
-  console.log('渲染器已关闭');
+  logger.info("Renderer", '渲染器已关闭');
 }

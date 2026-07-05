@@ -1,3 +1,4 @@
+import { logger } from '@/logger';
 import type { PluginDefinition } from "@/plugins/types";
 
 export default {
@@ -12,11 +13,11 @@ export default {
   },
   hooks: {
     onTweetReceived: (tweet) => {
-      console.log(`[log-tweet] 收到推文: @${tweet.author} - ${tweet.content.slice(0, 80)}`);
+      logger.info("LogTweet", `收到推文: @${tweet.author} - ${tweet.content.slice(0, 80)}`);
       return tweet;
     },
     onAfterInit: () => {
-      console.log("[log-tweet] bot 初始化完成");
+      logger.info("LogTweet", "bot 初始化完成");
     },
   },
   configSchema: {

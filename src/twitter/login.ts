@@ -1,5 +1,6 @@
 import * as speakeasy from "speakeasy";
 import { getConfig } from "@/config";
+import { logger } from '@/logger';
 
 interface LoginFlowToken {
   flow_token: string;
@@ -94,7 +95,7 @@ export async function loginWithCredentials(): Promise<LoginResult> {
     throw new Error("用户名和密码是登录所必需的");
   }
 
-  console.log(`正在以 @${username} 登录...`);
+  logger.info("Twitter", `正在以 @${username} 登录...`);
 
   const guestToken = await getGuestToken();
   let cookies: Record<string, string> = {};
@@ -223,7 +224,7 @@ export async function loginWithCredentials(): Promise<LoginResult> {
   if (postPasswordIds.includes("LoginTwoFactorAuthChallenge") || postPasswordIds.includes("LoginAcid")) {
     if (totpSecret) {
       const code = generateTOTPCode(totpSecret);
-      console.log("正在提交 TOTP 验证码...");
+      logger.info("Twitter", "正在提交 TOTP 验证码...");
 
       flowResult = await loginRequest(
         "/1.1/onboarding/task.json",
@@ -244,7 +245,7 @@ export async function loginWithCredentials(): Promise<LoginResult> {
         cookies,
       );
     } else if (email) {
-      console.log("Twitter 需要验证. 请检查邮箱获取验证码.");
+      logger.info("Twitter", "Twitter 需要验证. 请检查邮箱获取验证码.");
 
       const readline = await import("readline");
       const rl = readline.createInterface({
@@ -304,13 +305,13 @@ export async function loginWithCredentials(): Promise<LoginResult> {
     throw new Error("登录完成但未在响应中找到 Cookie");
   }
 
-  console.log("登录成功!");
-  console.log("\n将这些添加到你的 config.json twitter 配置中:");
-  console.log(`  "authToken": "${authToken}"`);
-  console.log(`  "ct0": "${ct0}"`);
-  console.log("\n或设置环境变量:");
-  console.log(`  TWITTER_AUTH_TOKEN=${authToken}`);
-  console.log(`  TWITTER_CT0=${ct0}`);
+  logger.info("Twitter", "登录成功!");
+  logger.info("Twitter", "\n将这些添加到你的 config.json twitter 配置中:");
+  logger.info("Twitter", `  "authToken": "${authToken}"`);
+  logger.info("Twitter", `  "ct0": "${ct0}"`);
+  logger.info("Twitter", "\n或设置环境变量:");
+  logger.info("Twitter", `  TWITTER_AUTH_TOKEN=${authToken}`);
+  logger.info("Twitter", `  TWITTER_CT0=${ct0}`);
 
   return { authToken, ct0 };
 }

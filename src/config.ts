@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as dotenv from 'dotenv';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { parse as parseToml } from 'smol-toml';
+import { logger } from '@/logger';
 import { AppConfig, GroupConfig } from '@/types';
 
 /** 把配置里的数值安全转成 [min,max] 内的有限整数；非法(NaN/负数/超大/非数字)时回退默认值。
@@ -140,7 +141,7 @@ export function loadConfig(configPath?: string): AppConfig {
 
   validateConfig(loadedConfig);
   config = loadedConfig;
-  console.log(`配置已从 ${filePath} 加载`);
+  logger.info('Config', `配置已从 ${filePath} 加载`);
   return config;
 }
 
@@ -203,7 +204,7 @@ function validateConfig(cfg: AppConfig): void {
   const hasLogin = cfg.twitter.username && cfg.twitter.password;
 
   if (!hasCookies && !hasLogin) {
-    console.warn('未配置 Twitter 认证, 将使用访客模式 (速率和访问受限)');
+    logger.warn('Config', '未配置 Twitter 认证, 将使用访客模式 (速率和访问受限)');
   }
 
   if (!cfg.pollIntervalMinutes || cfg.pollIntervalMinutes < 1) {
@@ -229,7 +230,7 @@ function validateConfig(cfg: AppConfig): void {
     );
 
     if (!hasGroupAdmins) {
-      console.warn('审批模式已启用但未配置管理员, 正在禁用审批');
+      logger.warn('Config', '审批模式已启用但未配置管理员, 正在禁用审批');
       cfg.enableApproval = false;
     }
   }
@@ -356,14 +357,14 @@ export function saveConfig(newConfig: AppConfig): void {
       fs.mkdirSync(fallbackDir, { recursive: true });
       fs.writeFileSync(fallback, content, 'utf-8');
       loadedConfigPath = fallback;
-      console.log(`配置文件只读, 已保存至 ${fallback}`);
+      logger.info('Config', `配置文件只读, 已保存至 ${fallback}`);
     } else {
       throw err;
     }
   }
 
   config = newConfig;
-  console.log(`配置已保存至 ${loadedConfigPath}`);
+  logger.info('Config', `配置已保存至 ${loadedConfigPath}`);
 }
 
 export function reloadConfig(): AppConfig {

@@ -5,6 +5,7 @@ import { formatContentForPlatform } from '@/filters';
 import { renderTweetImage } from '@/renderer';
 import { storeSentMessage, getRecentSentMessages, deleteSentMessage, getSentMessageByMessageId } from '@/storage';
 import { getPluginDiscordCommands } from '@/plugins';
+import { logger } from '@/logger';
 
 
 let client: Client | null = null;
@@ -33,11 +34,11 @@ export async function initDiscord(): Promise<boolean> {
   const config = getConfig();
 
   if (!config.discord.enabled) {
-    console.log('Discord 已在配置中禁用');
+    logger.info("Discord", "Discord 已在配置中禁用");
     return false;
   }
 
-  console.log('正在初始化 Discord 客户端...');
+    logger.info("Discord", "正在初始化 Discord 客户端...");
 
   try {
     client = new Client({
@@ -51,11 +52,11 @@ export async function initDiscord(): Promise<boolean> {
       ),
     ]);
 
-    console.log('Discord bot 已连接 (群组指定目标频道)');
+    logger.info("Discord", "Discord bot 已连接 (群组指定目标频道)");
 
     return true;
   } catch (error) {
-    console.error('Discord 初始化失败:', error);
+    logger.error("Discord", "Discord 初始化失败:", error);
     client = null;
     targetChannel = null;
     return false;
@@ -67,7 +68,7 @@ export async function sendToDiscord(tweet: ProcessedTweet, channelId?: string, a
   const sendImage = asImage ?? config.sendAsImage;
 
   if (!client) {
-    console.error('Discord 未初始化');
+    logger.error("Discord", "Discord 未初始化");
     return null;
   }
 
@@ -80,12 +81,12 @@ export async function sendToDiscord(tweet: ProcessedTweet, channelId?: string, a
         sendTo = channel as TextChannel;
       }
     } catch (e) {
-      console.error(`获取 Discord 频道 ${channelId} 失败:`, e);
+      logger.error("Discord", `获取 Discord 频道 ${channelId} 失败:`, e);
     }
   }
 
   if (!sendTo) {
-    console.error(`Discord 频道不可用${channelId ? ` (${channelId})` : ""}`);
+    logger.error("Discord", `Discord 频道不可用${channelId ? ` (${channelId})` : ""}`);
     return null;
   }
 
@@ -112,7 +113,7 @@ export async function sendToDiscord(tweet: ProcessedTweet, channelId?: string, a
         sentMessage = await sendWithRetry(sendTo, { embeds: [embed], files: [attachment] }, tweet.id);
         if (sentMessage) {
           storeSentMessage(sendTo.id, sentMessage.id, tweet.id);
-          console.log(`[Discord] 以图片形式发送推文 ${tweet.id}${channelId ? ` (${channelId})` : ""}`);
+          logger.info("Discord", `以图片形式发送推文 ${tweet.id}${channelId ? ` (${channelId})` : ""}`);
           return sentMessage;
         }
       }
@@ -139,14 +140,14 @@ export async function sendToDiscord(tweet: ProcessedTweet, channelId?: string, a
     sentMessage = await sendWithRetry(sendTo, { embeds: [embed] }, tweet.id);
     if (sentMessage) {
       storeSentMessage(sendTo.id, sentMessage.id, tweet.id);
-      console.log(`[Discord] 发送推文 ${tweet.id}${channelId ? ` (${channelId})` : ""}`);
+      logger.info("Discord", `发送推文 ${tweet.id}${channelId ? ` (${channelId})` : ""}`);
       return sentMessage;
     }
 
-    console.error(`[Discord] 推文 ${tweet.id} 发送失败, 所有重试均未成功`);
+    logger.error("Discord", `推文 ${tweet.id} 发送失败, 所有重试均未成功`);
     return null;
   } catch (error) {
-    console.error(`[Discord] 发送推文 ${tweet.id} 失败:`, error);
+    logger.error("Discord", `发送推文 ${tweet.id} 失败:`, error);
     return null;
   }
 }
@@ -157,7 +158,7 @@ async function sendWithRetry(channel: TextChannel, payload: { embeds: EmbedBuild
       const msg = await callWithTimeout(() => channel.send(payload), 15000);
       return msg;
     } catch (error) {
-      console.error(`[Discord] 发送尝试 ${attempt}/3 失败, 推文 ${tweetId}:`, (error as Error).message);
+      logger.error("Discord", `发送尝试 ${attempt}/3 失败, 推文 ${tweetId}:`, (error as Error).message);
       if (attempt < 3) {
         await new Promise(resolve => setTimeout(resolve, 5000 * attempt));
       }
@@ -282,9 +283,9 @@ export async function registerDiscordCommands(): Promise<void> {
       { body: commands }
     );
 
-    console.log(`Discord 斜杠命令已注册 (${commands.length} 个)`);
+    logger.info("Discord", `Discord 斜杠命令已注册 (${commands.length} 个)`);
   } catch (error) {
-    console.error('Discord 命令注册失败:', error);
+    logger.error("Discord", "Discord 命令注册失败:", error);
   }
 }
 
@@ -293,6 +294,6 @@ export async function shutdownDiscord(): Promise<void> {
     await client.destroy();
     client = null;
     targetChannel = null;
-    console.log('Discord bot 已断开');
+    logger.info("Discord", "Discord bot 已断开");
   }
 }

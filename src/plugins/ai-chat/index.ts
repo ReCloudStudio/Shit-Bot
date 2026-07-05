@@ -1,4 +1,5 @@
 import { Client, TextChannel, Message, ChatInputCommandInteraction, MessageFlags } from "discord.js";
+import { logger } from '@/logger';
 import { getConfig } from "@/config";
 import { chatWithAI, isAiEnabled } from "./chat";
 import { listMemories, deleteMemory } from "./memory";
@@ -53,7 +54,7 @@ async function sendChunkedReply(message: Message, text: string): Promise<void> {
       if (chunks.length > 1) await new Promise((r) => setTimeout(r, 500));
     }
   } catch (error) {
-    console.error("[AI] Discord AI 回复发送失败:", error);
+    logger.error("AI", "Discord AI 回复发送失败:", error);
   }
 }
 
@@ -90,7 +91,7 @@ async function backfillChannelHistory(channel: TextChannel, channelId: string, t
       break;
     }
   }
-  console.log(`[AI] 频道 ${channelId} 历史补全至 ${have} 条 (目标 ${targetTotal})`);
+  logger.info("AI", `频道 ${channelId} 历史补全至 ${have} 条 (目标 ${targetTotal})`);
 }
 
 async function handleMemoryCommand(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -136,7 +137,7 @@ export default {
       const aiCfg = getAiConfig();
       if (!config.discord.enabled || !aiCfg.enabled) {
         if (config.discord.enabled && !aiCfg.enabled) {
-          console.log("[AI] AI 聊天未启用，跳过 Discord AI 消息监听");
+          logger.info("AI", "AI 聊天未启用，跳过 Discord AI 消息监听");
         }
         return;
       }
@@ -159,7 +160,7 @@ export default {
               extractImageUrls(message),
             );
           } catch (e) {
-            console.warn("[AI] 记录频道消息失败(忽略):", (e as Error).message);
+            logger.warn("AI", "记录频道消息失败(忽略):", (e as Error).message);
           }
         }
 
@@ -170,12 +171,12 @@ export default {
         if (!botMentioned) return;
 
         if (!guildAllowed) {
-          console.log(`[AI] 服务器 ${message.guildId || "DM"} 不在 AI 允许列表中，跳过`);
+          logger.info("AI", `服务器 ${message.guildId || "DM"} 不在 AI 允许列表中，跳过`);
           return;
         }
 
         if (aiCfg.ignoreEveryoneMention && message.mentions.everyone) {
-          console.log("[AI] 消息包含 @everyone，跳过回复");
+          logger.info("AI", "消息包含 @everyone，跳过回复");
           return;
         }
 
@@ -202,7 +203,7 @@ export default {
               }
             }
           } catch (e) {
-            console.error(`[AI] 获取引用消息失败:`, (e as Error).message);
+            logger.error("AI", "获取引用消息失败:", (e as Error).message);
           }
         }
 
@@ -230,7 +231,7 @@ export default {
           reply = res.reply;
           reactions = res.reactions;
         } catch (e) {
-          console.error("[AI] chatWithAI 异常(兜底):", (e as Error).message);
+          logger.error("AI", "chatWithAI 异常(兜底):", (e as Error).message);
           reply = "AI 暂时不可用，请稍后再试。";
         } finally {
           stopTyping();
@@ -243,19 +244,19 @@ export default {
         }
 
         await sendChunkedReply(message, reply);
-        console.log(`[AI] 回复 ${message.author.username}: ${reply.slice(0, 60).replace(/\s+/g, " ")}...`);
+        logger.info("AI", `回复 ${message.author.username}: ${reply.slice(0, 60).replace(/\s+/g, " ")}...`);
       });
 
       client.on("interactionCreate", async (interaction) => {
         if (!interaction.isChatInputCommand()) return;
         if (interaction.commandName === "memory") {
-          await handleMemoryCommand(interaction).catch((e) => console.error("[AI] memory 命令错误:", e));
+          await handleMemoryCommand(interaction).catch((e) => logger.error("AI", "memory 命令错误:", e));
         } else if (interaction.commandName === "delete-memory") {
-          await handleDeleteMemoryCommand(interaction).catch((e) => console.error("[AI] delete-memory 命令错误:", e));
+          await handleDeleteMemoryCommand(interaction).catch((e) => logger.error("AI", "delete-memory 命令错误:", e));
         }
       });
 
-      console.log("[AI] Discord AI 聊天监听器已注册 (插件)");
+      logger.info("AI", "Discord AI 聊天监听器已注册 (插件)");
     },
     onDiscordCommands: () => {
       const aiCfg = getAiConfig();
