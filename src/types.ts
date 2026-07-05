@@ -70,6 +70,7 @@ export interface OneBotConfig {
   token?: string;
   secret?: string;
   reconnectInterval?: number;
+  wsSslVerify?: boolean;
 }
 
 export interface WebUIConfig {

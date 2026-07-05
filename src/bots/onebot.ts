@@ -3,6 +3,7 @@ import { ProcessedTweet, OneBotConfig } from '@/types';
 import { getConfig } from '@/config';
 import { formatContentForPlatform } from '@/filters';
 import { renderTweetImage } from '@/renderer';
+import { storeSentOneBotMessage } from '@/storage';
 import { getCachedImage } from '@/storage';
 
 let ws: WebSocket | null = null;
@@ -27,37 +28,25 @@ export interface OneBotMessage {
   };
 }
 
-function callWithTimeout<T>(fn: () => Promise<T>, timeoutMs: number = 15000): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('请求超时')), timeoutMs);
-    fn()
-      .then((result) => { clearTimeout(timer); resolve(result); })
-      .catch((err) => { clearTimeout(timer); reject(err); });
-  });
-}
+const pendingActions = new Map<string, { resolve: (v: any) => void; reject: (e: Error) => void }>();
 
 async function sendAction(action: string, params: Record<string, any> = {}): Promise<any> {
-  const config = getConfig();
-  const url = new URL(action, config.onebot.url);
-
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (config.onebot.token) {
-    headers['Authorization'] = `Bearer ${config.onebot.token}`;
-  }
-
-  const response = await callWithTimeout(() =>
-    fetch(url.toString(), {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ action, params }),
-    }),
-  );
-
-  const data = await response.json() as any;
-  if (data.retcode !== 0) {
-    throw new Error(`OneBot API 错误: ${data.message || data.wording || data.retcode}`);
-  }
-  return data.data;
+  const echo = `${messageId++}`;
+  return new Promise<any>((resolve, reject) => {
+    pendingActions.set(echo, { resolve, reject });
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ action, params, echo }));
+    } else {
+      pendingActions.delete(echo);
+      reject(new Error('WebSocket 未连接'));
+    }
+    setTimeout(() => {
+      if (pendingActions.has(echo)) {
+        pendingActions.delete(echo);
+        reject(new Error('请求超时'));
+      }
+    }, 15000);
+  });
 }
 
 export async function sendToOneBot(
@@ -88,6 +77,9 @@ export async function sendToOneBot(
         group_id: groupId,
         message: msg,
       });
+      if (result?.message_id) {
+        storeSentOneBotMessage(groupId, result.message_id, tweet.id);
+      }
       return result?.message_id || null;
     } else {
       const text = formatContentForPlatform(tweet.content, 'onebot');
@@ -99,6 +91,9 @@ export async function sendToOneBot(
         group_id: groupId,
         message: msg,
       });
+      if (result?.message_id) {
+        storeSentOneBotMessage(groupId, result.message_id, tweet.id);
+      }
       return result?.message_id || null;
     }
   } catch (error) {
@@ -137,7 +132,14 @@ function connect(): void {
   const wsUrl = config.onebot.url.replace(/^http/, 'ws');
   console.log(`[OneBot] 正在连接 ${wsUrl}`);
 
-  ws = new WebSocket(wsUrl);
+  const wsOptions: Record<string, any> = {};
+  if (!config.onebot.wsSslVerify) {
+    wsOptions.rejectUnauthorized = false;
+  }
+  if (config.onebot.token) {
+    wsOptions.headers = { Authorization: `Bearer ${config.onebot.token}` };
+  }
+  ws = new WebSocket(wsUrl, wsOptions);
 
   ws.on('open', () => {
     connected = true;
@@ -158,6 +160,18 @@ function connect(): void {
   ws.on('message', (data) => {
     try {
       const event = JSON.parse(data.toString());
+      // 处理 API 响应（OneBot 11 通过 echo 匹配请求）
+      if (event.echo && pendingActions.has(event.echo)) {
+        const { resolve, reject } = pendingActions.get(event.echo)!;
+        pendingActions.delete(event.echo);
+        if (event.retcode !== 0) {
+          reject(new Error(`OneBot API 错误: ${event.message || event.wording || event.retcode}`));
+        } else {
+          resolve(event.data);
+        }
+        return;
+      }
+      // 处理群消息
       if (event.message_type === 'group' && event.raw_message) {
         const msg: OneBotMessage = {
           message_id: event.message_id,
@@ -175,6 +189,11 @@ function connect(): void {
   ws.on('close', () => {
     connected = false;
     if (heartbeatTimer) clearInterval(heartbeatTimer);
+    // 清理所有待处理的请求
+    for (const [, { reject }] of pendingActions) {
+      reject(new Error('WebSocket 已断开'));
+    }
+    pendingActions.clear();
     console.log('[OneBot] WebSocket 已断开');
     scheduleReconnect();
   });

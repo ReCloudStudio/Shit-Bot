@@ -25,8 +25,10 @@ import {
   getCachedImage,
   getSentDiscordMessagesByTweetId,
   getSentTgMessagesByTweetId,
+  getSentOneBotMessagesByTweetId,
   deleteSentMessage,
   deleteSentTgMessage,
+  deleteSentOneBotMessage,
   storePendingApproval,
   deletePendingApproval,
   markApprovalDone,
@@ -957,18 +959,18 @@ async function handleDiscordApprovalImpl(interaction: ButtonInteraction): Promis
     const pending = loadApproval(approvalId);
 
     if (!pending) {
-      console.warn(`[审批] Discord approve 记录未找到: ${approvalId}`);
+      getConfig().debugMode && console.warn(`[审批] Discord approve 记录未找到: ${approvalId}`);
       try { await interaction.message.edit({ content: "⚠️ 审批记录未找到或已过期", components: [] }); } catch {}
       return;
     }
-    console.log(`[审批] Discord approve 记录已找到: ${approvalId}, approved=${pending.approved}`);
+    getConfig().debugMode && console.log(`[审批] Discord approve 记录已找到: ${approvalId}, approved=${pending.approved}`);
 
     if (pending.approved) {
-      console.warn(`[审批] Discord approve 已处理过: ${approvalId}`);
+      getConfig().debugMode && console.warn(`[审批] Discord approve 已处理过: ${approvalId}`);
       try { await interaction.message.edit({ content: "⚠️ 这条推文已经被审批过了", components: [] }); } catch {}
       return;
     }
-    console.log(`[审批] Discord approve 继续执行: ${approvalId}`);
+    getConfig().debugMode && console.log(`[审批] Discord approve 继续执行: ${approvalId}`);
 
     const config = getConfig();
   const group = getEffectiveGroups().find((g) => g.name === pending.groupName);
@@ -1128,6 +1130,7 @@ async function recallDispatchedMessages(approvalId: string): Promise<number> {
 
     const discordChannelIds = new Set<string>();
     const telegramChatIds = new Set<string>();
+    const onebotGroupIds = new Set<number>();
 
     if (group) {
       if (group.discord?.channelId) discordChannelIds.add(group.discord.channelId);
@@ -1138,6 +1141,8 @@ async function recallDispatchedMessages(approvalId: string): Promise<number> {
           telegramChatIds.add(target.chatId);
         }
       }
+      if (group.onebot?.groupId) onebotGroupIds.add(group.onebot.groupId);
+      if (group.onebot?.r14GroupId) onebotGroupIds.add(group.onebot.r14GroupId);
     }
 
     const tweetId = pending.tweet.id;
@@ -1176,6 +1181,20 @@ async function recallDispatchedMessages(approvalId: string): Promise<number> {
         } catch (error) {
           deleteSentTgMessage(record.message_id, record.chat_id);
         }
+      }
+    }
+
+    const obRecords = getSentOneBotMessagesByTweetId(tweetId);
+    for (const record of obRecords) {
+      if (!onebotGroupIds.has(record.group_id)) {
+        continue;
+      }
+      try {
+        await deleteOneBotMessage(record.message_id, record.group_id);
+        count++;
+        deleteSentOneBotMessage(record.message_id, record.group_id);
+      } catch (error) {
+        deleteSentOneBotMessage(record.message_id, record.group_id);
       }
     }
 
@@ -1307,22 +1326,22 @@ export async function handleDiscordRecall(interaction: ButtonInteraction): Promi
     try { await interaction.deferUpdate(); } catch {}
 
     const approvalId = customId.replace("recall_", "");
-    console.log(`[撤回] Discord 开始处理: ${approvalId}`);
+    getConfig().debugMode && console.log(`[撤回] Discord 开始处理: ${approvalId}`);
     const pending = loadApproval(approvalId);
 
     if (!pending) {
-      console.warn(`[撤回] Discord 审批记录未找到: ${approvalId}`);
+      getConfig().debugMode && console.warn(`[撤回] Discord 审批记录未找到: ${approvalId}`);
       try { await interaction.followUp({ content: "审批记录未找到或已过期", flags: MessageFlags.Ephemeral }); } catch {}
       return;
     }
-    console.log(`[撤回] Discord 记录已找到: ${approvalId}, approved=${pending.approved}`);
+    getConfig().debugMode && console.log(`[撤回] Discord 记录已找到: ${approvalId}, approved=${pending.approved}`);
 
     if (!pending.approved) {
-      console.warn(`[撤回] Discord 尚未批准: ${approvalId}`);
+      getConfig().debugMode && console.warn(`[撤回] Discord 尚未批准: ${approvalId}`);
       try { await interaction.followUp({ content: "该推文尚未被批准", flags: MessageFlags.Ephemeral }); } catch {}
       return;
     }
-    console.log(`[撤回] Discord 继续执行撤回: ${approvalId}`);
+    getConfig().debugMode && console.log(`[撤回] Discord 继续执行撤回: ${approvalId}`);
 
     const adminName = getDiscordAdminName(interaction);
     const deleted = await recallDispatchedMessages(approvalId);
