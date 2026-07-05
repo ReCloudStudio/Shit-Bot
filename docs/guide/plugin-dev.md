@@ -26,7 +26,7 @@ export default {
   },
   hooks: {
     onAfterInit: async () => {
-      console.log('插件初始化完成')
+      api.logger.info('插件初始化完成')
     },
     onDiscordMessage: async (message) => {
       if (message.content === '!ping') {
@@ -36,7 +36,7 @@ export default {
       return false // 放行
     },
     onAfterPoll: async (tweets) => {
-      console.log(`本轮获取到 ${tweets.length} 条推文`)
+      api.logger.info(`本轮获取到 ${tweets.length} 条推文`)
     },
   },
 } satisfies PluginDefinition

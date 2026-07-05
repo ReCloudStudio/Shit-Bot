@@ -11,11 +11,11 @@ hero:
       link: /guide/getting-started
     - theme: alt
       text: GitHub
-      link: https://github.com/RhenCloud/shit-bot
+      link: https://github.com/ReCloudStudio/shit-bot
 
 features:
   - title: 多平台推送
-    details: 支持 Discord Embed / Telegram HTML 格式推送，多群组分发
+    details: 支持 Discord Embed / Telegram HTML / QQ(OneBot11) 格式推送，多群组分发
   - title: 插件系统
     details: 支持内置、GitHub 源、外部目录三种插件加载方式，可插拔扩展
   - title: AI 聊天

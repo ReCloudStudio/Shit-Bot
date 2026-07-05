@@ -13,6 +13,7 @@
 | `webui` | `WebUIConfig` | Web 管理界面配置 |
 | `enableApproval` | `boolean` | 是否启用审批机制 |
 | `sendAsImage` | `boolean` | 是否将推文渲染为图片发送 |
+| `debugMode` | `boolean` | 启用 DEBUG 级别日志 |
 | `xToImageApiUrl` | `string` | 推文转图片 API 地址 |
 | `xToImageApiToken` | `string` | 推文转图片 API Token |
 | `xToImageApiTheme` | `string` | 图片主题: `light` / `dim` / `dark` |
@@ -57,6 +58,19 @@ telegram:
   token: YOUR_TELEGRAM_BOT_TOKEN
   parseMode: HTML
   apiRoot: ""                     # 自定义 API 地址（可选）
+```
+
+## onebot - QQ(OneBot11) 机器人
+
+使用 OneBot11 协议连接 QQ 机器人（如 NapCat、LLOneBot）。
+
+```yaml
+onebot:
+  enabled: true
+  url: "ws://127.0.0.1:3001"      # OneBot11 WebSocket 地址
+  token: "your_token"             # 访问令牌
+  wsSslVerify: true               # WSS 时验证证书，自签名证书设为 false
+  reconnectInterval: 5000         # 重连间隔（毫秒）
 ```
 
 ## twitter - Twitter 认证
@@ -108,11 +122,16 @@ groups:
       targets:
         r14:
           chatId: "-100_R14_CHAT_ID"
+    onebot:
+      groupId: 123456789            # QQ 群号
+      r14GroupId: 987654321         # R14 群号（可选）
     approval:
       discordAdminChannelId: "1234567892"
       discordApproveRoleId: "1234567893"
       telegramAdminChatIds:
         - "111111111"
+      onebotAdminGroupIds:          # QQ 审批通知群（可选）
+        - "222222222"
     blockedUsers: []               # 该群组拉黑的用户
 ```
 
@@ -122,15 +141,65 @@ groups:
 - 群组内也可以写具体用户名，覆盖该用户在群组内的过滤器
 - 用户被推送到群组的前提是满足群组过滤器和用户自身过滤器
 
+## 审批系统
+
+启用 `enableApproval: true` 后：
+
+1. 推文发送到管理员频道/群组（内联按钮：「全部发送」「发送 R14」「拒绝」）
+2. 管理员批准后推文送达目标群组，管理员消息更新为「已批准」并添加撤回按钮
+3. 点击「撤回」按钮（或 Discord `/recall` 命令）自动删除所有已发送的消息
+
+### 群组审批配置
+
+```yaml
+groups:
+  - name: my-group
+    approval:
+      discordAdminChannelId: "1234567892"     # Discord 审批通知频道
+      discordApproveRoleId: "1234567893"      # 审批权限角色 ID（可选）
+      telegramAdminChatIds:                   # Telegram 审批管理员
+        - "111111111"
+      onebotAdminGroupIds:                    # QQ 审批通知群
+        - "222222222"
+```
+
+### OneBot 审批命令
+
+```
+/approve <审批ID>   — 批准
+/reject <审批ID>    — 拒绝
+```
+
+### Discord 斜杠命令
+
+```
+/recall message_id:<ID>   — 按消息 ID 撤回
+/recall link:<URL>        — 按链接撤回
+```
+
+## 日志系统
+
+日志格式: `HH:MM:SS [LEVEL] [模块] 消息`
+
+| 级别 | 说明 |
+|------|------|
+| DEBUG | 调试信息，仅 `debugMode: true` 时输出 |
+| INFO | 常规信息 |
+| WARN | 警告 |
+| ERROR | 错误 |
+
 ## 环境变量覆盖
 
-以下环境变量可覆盖配置文件中的敏感字段：
+以下环境变量可覆盖配置文件中的敏感字段。环境变量优先级高于配置文件。
 
 | 环境变量 | 对应配置 |
 |----------|----------|
-| `AI_API_URL` | `plugins[].options.apiUrl` |
-| `AI_API_KEY` | `plugins[].options.apiKey` |
-| `AI_WEB_SEARCH_API_KEY` | `plugins[].options.webSearch.apiKey` |
+| `DISCORD_TOKEN` | `discord.token` |
+| `TELEGRAM_TOKEN` | `telegram.token` |
+| `ONEBOT_URL` | `onebot.url` |
+| `ONEBOT_TOKEN` | `onebot.token` |
+| `ONEBOT_SECRET` | `onebot.secret` |
+| `ONEBOT_ENABLED` | `onebot.enabled` |
 | `TWITTER_AUTH_TOKEN` | `twitter.authToken` |
 | `TWITTER_CT0` | `twitter.ct0` |
 | `TWITTER_USERNAME` | `twitter.username` |
@@ -139,3 +208,7 @@ groups:
 | `TWITTER_TOTP_SECRET` | `twitter.totpSecret` |
 | `X_TO_IMAGE_API_URL` | `xToImageApiUrl` |
 | `X_TO_IMAGE_API_TOKEN` | `xToImageApiToken` |
+| `DEBUG_MODE` | `debugMode` |
+| `AI_API_URL` | `plugins[].options.apiUrl` |
+| `AI_API_KEY` | `plugins[].options.apiKey` |
+| `AI_WEB_SEARCH_API_KEY` | `plugins[].options.webSearch.apiKey` |

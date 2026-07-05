@@ -8,7 +8,7 @@
 ## 安装
 
 ```bash
-git clone https://github.com/RhenCloud/shit-bot.git
+git clone https://github.com/ReCloudStudio/shit-bot.git
 cd shit-bot
 bun install
 ```
@@ -18,7 +18,7 @@ bun install
 复制示例配置文件并编辑：
 
 ```bash
-cp config.example.yaml config.yaml
+cp config.yaml config.yaml
 ```
 
 最低配置需要以下内容：
@@ -39,6 +39,11 @@ discord:
 telegram:
   enabled: true
   token: YOUR_TELEGRAM_BOT_TOKEN
+
+# OneBot(QQ)（可选）
+# onebot:
+#   enabled: true
+#   url: "ws://127.0.0.1:3001"
 
 # Twitter Cookie 认证
 twitter:
@@ -64,6 +69,12 @@ bun run dev
 bun run build
 bun run start
 ```
+
+## 日志
+
+日志格式: `HH:MM:SS [LEVEL] [模块] 消息`
+
+设置 `debugMode: true` 可查看 DEBUG 级别日志：
 
 ## Docker 部署
 
