@@ -130,26 +130,22 @@ function connect(): void {
   const config = getConfig();
   if (!config.onebot.enabled || !config.onebot.url) return;
 
-  const wsUrl = config.onebot.url.replace(/^http/, 'ws');
+  let wsUrl = config.onebot.url.replace(/^http/, 'ws');
+  if (config.onebot.token) {
+    const sep = wsUrl.includes('?') ? '&' : '?';
+    wsUrl = `${wsUrl}${sep}access_token=${encodeURIComponent(config.onebot.token)}`;
+  }
   logger.info("OneBot", `正在连接 ${wsUrl}`);
 
   const wsOptions: Record<string, any> = {};
   if (!config.onebot.wsSslVerify) {
     wsOptions.rejectUnauthorized = false;
   }
-  if (config.onebot.token) {
-    wsOptions.headers = { Authorization: `Bearer ${config.onebot.token}` };
-  }
   ws = new WebSocket(wsUrl, wsOptions);
 
   ws.on('open', () => {
     connected = true;
     logger.info("OneBot", 'WebSocket 已连接');
-
-    if (config.onebot.secret) {
-      const auth = { type: 'signal', op: 1, body: { token: config.onebot.secret } };
-      ws!.send(JSON.stringify(auth));
-    }
 
     heartbeatTimer = setInterval(() => {
       if (ws?.readyState === WebSocket.OPEN) {
