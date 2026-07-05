@@ -1,283 +1,267 @@
 # X/Twitter Monitor Bot
 
-自动监控 X/Twitter 用户发帖，通过 Discord/Telegram Bot 推送到群组/频道。
+自动监控 X/Twitter 用户发帖，通过 Discord / Telegram / QQ(OneBot11) 推送到群组/频道。
 
 ## 功能特性
 
-- 通过 X/Twitter GraphQL API 直接获取推文
-- 支持 Cookie 认证 或 用户名/密码/TOTP 登录
-- 支持关键词过滤（包含/排除）
-- 支持媒体过滤（图片/视频）
-- 支持排除转推/回复
-- 推文渲染为图片发送
-- 多管理员审批机制
-- SQLite 持久化存储
-- Discord Embed 推送
-- Telegram HTML 格式推送
-- 定时轮询，可配置间隔
+- **多平台推送**: Discord Embed、Telegram HTML、QQ 群(OneBot11)
+- **推文渲染**: SVG→PNG 渲染为图片发送（`sharp`）
+- **审批系统**: 多管理员审批，支持 Telegram inline keyboard / Discord buttons / OneBot 文本命令
+- **R14 内容**: 支持将 NSFW 内容分流到独立群组
+- **目标标签**: 支持自定义发送目标（如 `r14`），管理员可选择发送到特定目标
+- **撤回**: 批准后可通过按钮撤回已发送的消息（所有平台）
+- **RSS 订阅**: 通过 RSS 拉取推文（备选方案）
+- **X to Image API**: 推文截图渲染服务
+- **X/Twitter GraphQL API**: 直接获取推文，支持 Cookie 认证或密码登录
+- **过滤器**: 关键词包含/排除、媒体过滤、排除转推/回复
+- **插件系统**: 可热加载的插件框架，内置 AI 聊天、日志等插件
+- **AI 聊天**: 支持频道内 AI 对话（配置 AI provider）
+- **Web UI**: 浏览器管理配置
+- **Logger**: 统一日志系统（DEBUG/INFO/WARN/ERROR）
+- **SQLite**: `better-sqlite3` 持久化存储
+- **定时轮询**: 可配置间隔，推文去重
 
-## 安装
+## 技术栈
+
+- **运行时**: [Bun](https://bun.sh)（`packageManager: bun`）
+- **语言**: TypeScript（`@/` 路径别名）
+- **构建**: `tsc` + `tsc-alias`
+- **数据库**: `better-sqlite3`（原生 C++ 模块）
+- **开发环境**: Nix Flakes（可选）
+
+## 快速开始
 
 ```bash
-npm install
-cp config.example.json config.json
-# 编辑 config.json 填入配置
+bun install
+cp config.yaml config.yaml  # 参照下方说明编辑
+bun run dev                  # 开发模式（热重载）
 ```
 
-## 配置说明
+## Commands
 
-复制 `config.example.json` 为 `config.json`，按需修改：
-
-### users - 监控用户
-
-```json
-{
-  "users": [
-    {
-      "username": "elonmusk",
-      "displayName": "Elon Musk",
-      "filters": {
-        "keywords": {
-          "include": ["tesla", "spacex"],
-          "exclude": ["ad", "sponsored"]
-        },
-        "media": { "requireMedia": false },
-        "excludeRetweets": true,
-        "excludeReplies": false
-      }
-    }
-  ]
-}
+```bash
+bun install          # 安装依赖
+bun run dev          # tsx watch 热重载开发
+bun run build        # tsc + tsc-alias + 复制静态资源
+bun run start        # node dist/index.js（需先 build）
 ```
 
-| 字段                         | 类型     | 说明                              |
-| ---------------------------- | -------- | --------------------------------- |
-| `username`                   | string   | X/Twitter 用户名（不含 @）        |
-| `displayName`                | string   | 显示名称（可选）                  |
-| `filters.keywords.include`   | string[] | 必须包含的关键词（空数组=不限制） |
-| `filters.keywords.exclude`   | string[] | 排除的关键词                      |
-| `filters.media.requireMedia` | boolean  | 是否只推送包含媒体的推文          |
-| `filters.excludeRetweets`    | boolean  | 是否排除转推                      |
-| `filters.excludeReplies`     | boolean  | 是否排除回复                      |
+## 配置
 
-### discord - Discord 配置
+支持 `config.yaml` / `config.yml` / `config.toml` / `config.json` 格式，按以下顺序查找：
 
-```json
-{
-  "discord": {
-    "enabled": true,
-    "token": "YOUR_DISCORD_BOT_TOKEN",
-    "channelId": "YOUR_CHANNEL_ID",
-    "adminChannelId": "YOUR_ADMIN_CHANNEL_ID",
-    "embedColor": "#1DA1F2"
-  }
-}
+```
+config.yaml > config.yml > config.toml > config.json
 ```
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `enabled` | boolean | 是否启用 Discord |
-| `token` | string | Bot Token |
-| `channelId` | string | 目标频道 ID |
-| `adminChannelId` | string | 管理员审批频道 ID（可选） |
-| `embedColor` | string | Embed 颜色（十六进制） |
-
-### telegram - Telegram 配置
-
-```json
-{
-  "telegram": {
-    "enabled": true,
-    "token": "YOUR_TELEGRAM_BOT_TOKEN",
-    "chatId": "-1001234567890",
-    "adminChatIds": ["111111111", "222222222"],
-    "parseMode": "HTML",
-    "apiRoot": ""
-  }
-}
-```
-
-| 字段           | 类型     | 说明                               |
-| -------------- | -------- | ---------------------------------- |
-| `enabled`      | boolean  | 是否启用 Telegram                  |
-| `token`        | string   | Bot Token（从 @BotFather 获取）    |
-| `chatId`       | string   | 目标群组/频道 ID                   |
-| `adminChatIds` | string[] | 管理员 Chat ID 数组（审批用）      |
-| `parseMode`    | string   | 消息格式（`HTML` 或 `Markdown`）   |
-| `apiRoot`      | string   | Telegram API 代理地址（留空=直连） |
-
-### twitter - X/Twitter 认证配置
-
-提供以下两种方式之一进行认证：
-
-**方式一：Cookie 认证（推荐）**
-
-从浏览器中提取 `auth_token` 和 `ct0` 两个 Cookie：
-
-```json
-{
-  "twitter": {
-    "authToken": "你的 auth_token",
-    "ct0": "你的 ct0"
-  }
-}
-```
-
-**方式二：用户名/密码登录**
-
-提供 X 账号的用户名和密码，程序启动时会自动登录获取 Cookie：
-
-```json
-{
-  "twitter": {
-    "username": "你的用户名",
-    "password": "你的密码",
-    "email": "你的邮箱",
-    "totpSecret": "你的 TOTP Secret"
-  }
-}
-```
-
-| 字段         | 类型   | 说明                                                      |
-| ------------ | ------ | --------------------------------------------------------- |
-| `authToken`  | string | Cookie `auth_token`（方式一必填）                         |
-| `ct0`        | string | Cookie `ct0`（方式一必填）                                |
-| `username`   | string | X/Twitter 用户名（方式二必填）                            |
-| `password`   | string | X/Twitter 密码（方式二必填）                              |
-| `email`      | string | 注册邮箱（登录遇到验证时使用）                            |
-| `totpSecret` | string | TOTP 二次验证密钥（Base32 格式，开启 2FA 时使用）         |
-
-> **注意**：也可以通过环境变量配置，详见下方「环境变量」章节。
+也可通过环境变量覆盖（详见 AGENTS.md 或 `.env.example`）。
 
 ### 全局配置
 
-```json
-{
-  "enableApproval": true,
-  "sendAsImage": true,
-  "pollIntervalMinutes": 5,
-  "maxPostsPerFetch": 20,
-  "maxTweetAgeMinutes": 60
-}
+```yaml
+enableApproval: true
+sendAsImage: true
+pollIntervalMinutes: 5
+maxPostsPerFetch: 20
+maxTweetAgeMinutes: 60
+debugMode: false
 ```
 
-| 字段                  | 类型    | 默认值 | 说明                                |
-| --------------------- | ------- | ------ | ----------------------------------- |
-| `enableApproval`      | boolean | false  | 是否启用审批（需配置 adminChatIds） |
-| `sendAsImage`         | boolean | false  | 是否渲染为图片发送                  |
-| `pollIntervalMinutes` | number  | 5      | 轮询间隔（分钟）                    |
-| `maxPostsPerFetch`    | number  | 20     | 每次最多获取推文数                  |
-| `maxTweetAgeMinutes`  | number  | 60     | 推文最大年龄（超过则跳过）          |
+| 字段                  | 类型    | 默认值 | 说明                      |
+| --------------------- | ------- | ------ | ------------------------- |
+| `enableApproval`      | boolean | false  | 启用审批流程              |
+| `sendAsImage`         | boolean | false  | 渲染为图片发送（SVG→PNG） |
+| `pollIntervalMinutes` | number  | 5      | 轮询间隔（分钟）          |
+| `maxPostsPerFetch`    | number  | 20     | 每次最多获取推文数        |
+| `maxTweetAgeMinutes`  | number  | 60     | 推文最大年龄，超过跳过    |
+| `debugMode`           | boolean | false  | 启用 DEBUG 级别日志       |
+| `xToImageApiUrl`      | string  | -      | X to Image API 地址       |
+| `xToImageApiToken`    | string  | -      | API Token                 |
 
-## 获取 Token
+### Twitter / X 认证
 
-### X/Twitter Cookie
-
-**获取 `auth_token` 和 `ct0`：**
-
-1. 在浏览器中登录 https://x.com
-2. 打开开发者工具（F12）→ Application → Cookies → `https://x.com`
-3. 找到并复制 `auth_token` 和 `ct0` 的值
-4. 填入 `config.json` 的 `twitter` 部分
-
-> **提示**：Cookie 有效期较长，但更换密码或主动登出会失效。失效后需重新获取。
-
-**使用用户名/密码登录（可选）：**
-
-如果不想手动提取 Cookie，可以在 `config.json` 中填入 `username` 和 `password`（以及可选的 `email`、`totpSecret`），程序启动时会自动登录并打印获取到的 Cookie。
-
-也可以使用 `totpSecret` 字段支持 2FA 二次验证（Base32 格式）。
-
-### Discord Bot Token
-
-1. 访问 https://discord.com/developers/applications
-2. 创建应用 → Bot → 复制 Token
-3. 邀请 Bot 到服务器，授予 `Send Messages` 和 `Embed Links` 权限
-4. 右键频道 → 复制频道 ID
-
-### Telegram Bot Token
-
-1. 在 Telegram 搜索 @BotFather
-2. 发送 `/newbot` 创建 Bot
-3. 复制 Token
-4. 获取 Chat ID：发送消息给 Bot，访问 `https://api.telegram.org/bot<TOKEN>/getUpdates`
-
-### Telegram Admin Chat ID
-
-1. 给 Bot 发送任意消息
-2. 访问 `https://api.telegram.org/bot<TOKEN>/getUpdates`
-3. 在返回的 JSON 中找到 `chat.id`
-
-## 运行
-
-```bash
-# 开发模式
-npm run dev
-
-# 生产模式
-npm run build
-npm start
+```yaml
+twitter:
+  authToken: "你的 auth_token"   # Cookie 认证（推荐）
+  ct0: "你的 ct0"
+  # 或使用密码登录：
+  # username: "你的用户名"
+  # password: "你的密码"
+  # email: "你的邮箱"
+  # totpSecret: "你的 TOTP Secret"
 ```
 
-## 审批功能
+### Discord
 
-启用 `enableApproval` 后，支持 Telegram 和 Discord 双平台审批：
+```yaml
+discord:
+  enabled: true
+  token: "YOUR_DISCORD_BOT_TOKEN"
+  adminChannelId: "管理频道ID"       # 审批命令频道
+  approveRoleId: "审批角色ID"         # 可选，审批权限角色
+```
 
-**Telegram 审批**：配置 `telegram.adminChatIds`
-**Discord 审批**：配置 `discord.adminChannelId`
+### Telegram
 
-流程：
+```yaml
+telegram:
+  enabled: true
+  token: "YOUR_TELEGRAM_BOT_TOKEN"
+  adminChatIds:
+    - "111111111"
+    - "222222222"
+  parseMode: "HTML"
+  apiRoot: ""                        # 代理地址（可选）
+```
 
-1. 推文同时发送给 Telegram 管理员和 Discord 审批频道
-2. 管理员点击 ✅ 或 ❌ 按钮
-3. 任意一位管理员审批通过后，推文发送到目标群组/频道
-4. 其他管理员收到审批结果通知（包含审批人）
+### OneBot (QQ)
 
-> 可以只配置一个平台的管理员，也可以同时配置两个平台。
+```yaml
+onebot:
+  enabled: true
+  url: "ws://127.0.0.1:3001"         # OneBot11 WebSocket 地址
+  token: "你的令牌"                   # 访问令牌
+  wsSslVerify: true                  # WSS 时是否验证证书（自签名证书设为 false）
+  reconnectInterval: 5000            # 重连间隔（ms）
+```
+
+### 监控用户
+
+```yaml
+users:
+  - username: "elonmusk"
+    displayName: "Elon Musk"
+    filters:
+      keywords:
+        include: ["tesla", "spacex"]
+        exclude: ["ad"]
+      media:
+        requireMedia: false
+      excludeRetweets: true
+      excludeReplies: false
+```
+
+### 发送群组
+
+支持同时配置多个发布目标（Discord / Telegram / OneBot），每个群组可配置审批频道和 R14 专用频道：
+
+```yaml
+groups:
+  - name: my-group
+    users:
+      - username: "*"                     # * = 所有监控用户
+    discord:
+      channelId: "目标频道ID"
+      r14ChannelId: "R14频道ID"           # NSFW 内容分流（可选）
+    telegram:
+      chatId: "-1001234567890"
+      targets:
+        r14:
+          chatId: "-1009876543210"        # R14 内容目标（可选）
+    onebot:
+      groupId: 123456789                  # QQ 群号
+      r14GroupId: 987654321               # R14 群号（可选）
+    approval:
+      discordAdminChannelId: "审批频道ID"  # Discord 审批通知频道
+      discordApproveRoleId: ""            # Discord 审批角色 ID（可选）
+      telegramAdminChatIds:               # Telegram 审批管理员
+        - "111111111"
+      onebotAdminGroupIds:                # QQ 审批通知群
+        - "222222222"
+```
+
+### AI 聊天插件
+
+```yaml
+plugins:
+  - name: ai-chat
+    enabled: true
+    config:
+      provider: "openai"
+      baseUrl: "https://api.openai.com/v1"
+      apiKey: "sk-..."
+      model: "gpt-4o"
+      systemPrompt: "你是一个有用的助手"
+      allowList:
+        - "服务器ID"                       # 允许 AI 聊天的 Discord 服务器
+      maxTokens: 1024
+      temperature: 0.7
+```
+
+## 审批流程
+
+启用 `enableApproval: true` 后：
+
+1. 推文发送到管理员频道/群组（含审批按钮）
+2. 管理员可点击「全部发送」「发送 R14」「拒绝」
+3. 批准后推文送达目标群组，管理员消息更新为「已批准」+ 撤回按钮
+4. 撤回: 点击「撤回」按钮，自动删除所有已发送的消息
+
+### OneBot 审批命令
+
+```
+/approve <ID>   — 批准
+/reject <ID>    — 拒绝
+```
+
+### Discord 斜杠命令
+
+```
+/recall message_id:<ID>   — 按消息 ID 撤回
+/recall link:<URL>        — 按链接撤回
+```
+
+## 日志系统
+
+格式: `HH:MM:SS [LEVEL] [模块] 消息`
+
+| 级别  | 说明                                  |
+| ----- | ------------------------------------- |
+| DEBUG | 调试信息，仅 `debugMode: true` 时输出 |
+| INFO  | 常规信息                              |
+| WARN  | 警告                                  |
+| ERROR | 错误                                  |
+
+## 插件系统
+
+内置插件存放在 `src/plugins/`，支持热加载。
+
+外部插件可通过以下方式安装：
+
+```yaml
+plugins:
+  - name: my-plugin
+    github: owner/repo      # 从 GitHub 仓库安装
+```
+
+## Web UI
+
+启动后访问 `http://localhost:3000`（默认端口），可在线查看和修改配置。
 
 ## 数据存储
 
-使用 SQLite 存储已发送的推文记录：
+数据库位置: `data/bot.db`（SQLite）
 
-- 数据库位置：`data/bot.db`
-- 自动清理 30 天前的记录
-
-查看记录：
-
-```bash
-sqlite3 data/bot.db "SELECT * FROM sent_tweets ORDER BY sent_at DESC LIMIT 10"
-```
-
-## 过滤规则说明
-
-| 规则                 | 说明                       |
-| -------------------- | -------------------------- |
-| `keywords.include`   | 推文必须包含至少一个关键词 |
-| `keywords.exclude`   | 推文包含任一关键词则跳过   |
-| `media.requireMedia` | 只推送包含媒体的推文       |
-| `excludeRetweets`    | 跳过转推                   |
-| `excludeReplies`     | 跳过回复                   |
+表:
+- `sent_tweets` — 已发送推文记录
+- `sent_discord_messages` — Discord 消息记录
+- `sent_telegram_messages` — Telegram 消息记录
+- `sent_onebot_messages` — OneBot 消息记录
+- `pending_approvals` — 待审批记录
+- `image_cache` — 图片缓存
 
 ## 环境变量
 
-可选，在 `.env` 文件中配置：
+支持 `.env` 文件，环境变量会覆盖配置文件中的对应值。关键变量：
 
-```env
-DISCORD_TOKEN=your_discord_bot_token
-TELEGRAM_TOKEN=your_telegram_bot_token
-
-# Twitter/X Cookie 认证
-TWITTER_AUTH_TOKEN=your_auth_token
-TWITTER_CT0=your_ct0
-
-# Twitter/X 用户名/密码登录（可选）
-# TWITTER_USERNAME=your_username
-# TWITTER_PASSWORD=your_password
-# TWITTER_EMAIL=your_email@example.com
-# TWITTER_TOTP_SECRET=your_totp_base32_secret
-```
-
-环境变量会覆盖 `config.json` 中的对应配置。
+| 变量                 | 说明                      |
+| -------------------- | ------------------------- |
+| `DISCORD_TOKEN`      | Discord Bot Token         |
+| `TELEGRAM_TOKEN`     | Telegram Bot Token        |
+| `ONEBOT_URL`         | OneBot WebSocket 地址     |
+| `TWITTER_AUTH_TOKEN` | Twitter auth_token Cookie |
+| `TWITTER_CT0`        | Twitter ct0 Cookie        |
+| `DEBUG_MODE`         | `true` 启用调试日志       |
 
 ## License
 
