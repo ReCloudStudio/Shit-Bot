@@ -187,19 +187,19 @@ function withTimeoutResult<T>(promise: Promise<T>, ms: number, label: string, re
     promise.then((val) => {
       const success = typeof val === "boolean" ? val : !!val;
       results.push({ label, success, error: success ? undefined : "返回值为空" });
-      logger.info("审批", `[发送] ${label}: ${success ? "成功" : "失败"}`);
+      logger.info("发送", `[发送] ${label}: ${success ? "成功" : "失败"}`);
     }),
     new Promise<void>((resolve) => {
       const timer = setTimeout(() => {
         results.push({ label, success: false, error: `超时 (${ms}ms)` });
-        logger.warn("审批", `[发送] ${label}: 超时 (${ms}ms)${urlSuffix}`);
+        logger.warn("发送", `[发送] ${label}: 超时 (${ms}ms)${urlSuffix}`);
         resolve();
       }, ms);
       timer.unref();
     }),
   ]).catch((err) => {
     results.push({ label, success: false, error: (err as Error).message });
-    logger.error("审批", `[发送] ${label}: 错误 - ${(err as Error).message}${urlSuffix}`);
+    logger.error("发送", `[发送] ${label}: 错误 - ${(err as Error).message}${urlSuffix}`);
   });
 }
 
@@ -680,17 +680,17 @@ async function notifyOtherAdmins(
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<void> {
   return Promise.race([
     promise.then(() => {
-      logger.info("审批", `[发送] ${label}: 成功`);
+      logger.info("发送", `[发送] ${label}: 成功`);
     }),
     new Promise<void>((resolve) => {
       const timer = setTimeout(() => {
-        logger.warn("审批", `[发送] ${label}: 超时 (${ms}ms)`);
+        logger.warn("发送", `[发送] ${label}: 超时 (${ms}ms)`);
         resolve();
       }, ms);
       timer.unref();
     }),
   ]).catch((err) => {
-    logger.error("审批", `[发送] ${label}: 错误 - ${(err as Error).message}`);
+    logger.error("发送", `[发送] ${label}: 错误 - ${(err as Error).message}`);
   });
 }
 
