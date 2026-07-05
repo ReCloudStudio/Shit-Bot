@@ -7,7 +7,7 @@ import { initDiscord, shutdownDiscord, getDiscordClient, registerDiscordCommands
 import { initTelegram, shutdownTelegram, getTelegramBot } from '@/bots/telegram';
 import { initOneBot, shutdownOneBot, setOneBotMessageHandler, isOneBotConnected } from '@/bots/onebot';
 import { initDatabase, closeDatabase, markMultipleAsSent, cleanupOldRecords, cleanupExpiredImages, cleanupOldSentMessages, cleanupOldSentTgMessages, cleanupCorruptedApprovals } from '@/storage';
-import { sendForApproval, sendToAllGroups, handleTelegramApproval, handleDiscordApproval, setTelegramBot, setDiscordClient, handleRecallCommand, handleRecallMessageContextMenu, handleTelegramRecall, handleDiscordRecall, rehydratePendingApprovals, cleanupExpiredApprovals } from '@/approval';
+import { sendForApproval, sendToAllGroups, handleTelegramApproval, handleDiscordApproval, setTelegramBot, setDiscordClient, handleRecallCommand, handleRecallMessageContextMenu, handleTelegramRecall, handleDiscordRecall, cleanupExpiredApprovals } from '@/approval';
 import { initRenderer, shutdownRenderer } from '@/renderer';
 import { initTwitterClient, loginWithCredentials } from '@/twitter';
 import { startWebServer } from '@/web/server';
@@ -163,7 +163,6 @@ async function start(): Promise<void> {
 
   initDatabase();
   cleanupCorruptedApprovals();
-  rehydratePendingApprovals();
 
   const config = getConfig();
 
@@ -320,13 +319,17 @@ async function start(): Promise<void> {
   }
 
   console.log(`\n轮询间隔: ${config.pollIntervalMinutes} 分钟`);
-  console.log('开始首次轮询...\n');
 
-  await pollAndSend();
+  if (config.debugMode) {
+    console.log('⚠️  调试模式: 跳过自动轮询, 仅通过 API 手动发送');
+  } else {
+    console.log('开始首次轮询...\n');
+    await pollAndSend();
 
-  const cronExpression = `*/${config.pollIntervalMinutes} * * * *`;
-  cronJob = cron.schedule(cronExpression, pollAndSend);
-  console.log(`定时任务已设置: ${cronExpression}`);
+    const cronExpression = `*/${config.pollIntervalMinutes} * * * *`;
+    cronJob = cron.schedule(cronExpression, pollAndSend);
+    console.log(`定时任务已设置: ${cronExpression}`);
+  }
 
   for (const pc of getPluginCronJobs()) {
     cron.schedule(pc.expression, pc.handler);

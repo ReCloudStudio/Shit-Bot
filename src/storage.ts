@@ -209,7 +209,8 @@ export function cacheImage(tweetId: string, imageBuffer: Buffer): void {
 export function getCachedImage(tweetId: string): Buffer | null {
   const database = getDatabase();
   const row = database.query('SELECT image_data FROM image_cache WHERE tweet_id = ?').get(tweetId) as { image_data: Buffer } | undefined;
-  return row ? row.image_data : null;
+  if (!row) return null;
+  return Buffer.from(row.image_data);
 }
 
 export function cleanupExpiredImages(maxAgeMinutes: number = 60): number {
@@ -413,7 +414,7 @@ export function cleanupCorruptedApprovals(): number {
   return result.changes;
 }
 
-const APPROVAL_COLS = `approval_id as "approvalId", group_name as "groupName", tweet_json as "tweetJson", telegram_msg_ids as "telegramMsgIds", discord_msg_ids as "discordMsgIds", created_at as "createdAt", approved, approved_by as "approvedBy", sent_to as "sentTo", has_image as "hasImage"`;
+const APPROVAL_COLS = `approval_id as "approvalId", group_name as "groupName", tweet_json as "tweetJson", telegram_msg_ids as "telegramMsgIds", discord_msg_ids as "discordMsgIds", onebot_msg_ids as "onebotMsgIds", created_at as "createdAt", approved, approved_by as "approvedBy", sent_to as "sentTo", has_image as "hasImage"`;
 
 export function getAllPendingApprovals(): PersistedApproval[] {
   const database = getDatabase();

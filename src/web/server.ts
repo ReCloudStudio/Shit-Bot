@@ -30,6 +30,7 @@ function sendError(res: http.ServerResponse, message: string, status = 400): voi
 
 function checkAuth(req: IncomingMessage): boolean {
   const cfg = getConfig();
+  if (cfg.debugMode) return true;
   if (!cfg.webui.password) return true;
   const auth = req.headers['authorization'];
   if (!auth) return false;
@@ -300,6 +301,8 @@ async function handleAPI(req: IncomingMessage, res: http.ServerResponse, urlPath
       const content = body.content || '这是一条测试推文';
       const author = body.author || 'test_user';
       const authorName = body.authorName || 'Test User';
+      const targetTag = body.target || undefined;
+      const useMockImage = body.mockImage === true;
 
       if (!tweetUrl && !body.mock) {
         sendError(res, '需要 url 或 mock: true');
@@ -319,19 +322,46 @@ async function handleAPI(req: IncomingMessage, res: http.ServerResponse, urlPath
         matchedUser: { username: '*' },
         passedFilters: true,
         filterReasons: [],
+        _skipUserFilter: true,
       };
 
-      console.log(`[调试] 手动发送测试推文: ${tweet.url}`);
+      console.log(`[调试] 手动发送测试推文: ${tweet.url}${targetTag ? ` (目标: ${targetTag})` : ''}${useMockImage ? ' (Mock 图片)' : ''}`);
+
+      if (useMockImage) {
+        const { renderMockImage } = await import('@/renderer');
+        const { cacheImage } = await import('@/storage');
+        const imgBuf = await renderMockImage(tweet);
+        cacheImage(tweet.id, imgBuf);
+      }
+
       const config = getConfig();
 
       if (config.enableApproval) {
         await sendForApproval(tweet);
       } else {
         const { sendToAllGroups } = await import('@/approval');
-        await sendToAllGroups(tweet);
+        await sendToAllGroups(tweet, targetTag);
       }
 
-      sendJSON(res, { success: true, tweetId: tweet.id });
+      sendJSON(res, { success: true, tweetId: tweet.id, target: targetTag || 'all', mockImage: useMockImage });
+      return;
+    }
+
+    if (req.method === 'POST' && urlPath === '/api/debug/approve') {
+      const body = JSON.parse(req.body || '{}');
+      const approvalId = body.approvalId;
+      const reject = body.reject === true;
+
+      if (!approvalId) {
+        sendError(res, '需要 approvalId');
+        return;
+      }
+
+      console.log(`[调试] API 审批: ${reject ? '拒绝' : '批准'} ${approvalId}`);
+      const { handleOneBotApproval } = await import('@/approval');
+      const groupId = body.groupId || 0;
+      await handleOneBotApproval(approvalId, 0, groupId, reject);
+      sendJSON(res, { success: true, action: reject ? 'rejected' : 'approved' });
       return;
     }
 

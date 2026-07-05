@@ -103,7 +103,7 @@ export async function sendToDiscord(tweet: ProcessedTweet, channelId?: string, a
           .setURL(tweet.url)
           .setImage(`attachment://tweet_${tweet.id}.png`)
           .setColor((config.discord.embedColor || '#1DA1F2') as `#${string}`)
-          .setTimestamp(tweet.publishedAt);
+          .setTimestamp(new Date(tweet.publishedAt));
 
         if (approvalId) {
           embed.setFooter({ text: `🆔 ${approvalId}` });
@@ -122,7 +122,7 @@ export async function sendToDiscord(tweet: ProcessedTweet, channelId?: string, a
       .setAuthor({ name: `@${tweet.author}`, url: `https://x.com/${tweet.author}`, iconURL: `https://unavatar.io/twitter/${tweet.author}` })
       .setDescription(formatContentForPlatform(tweet.content, 'discord'))
       .setURL(tweet.url)
-      .setTimestamp(tweet.publishedAt)
+      .setTimestamp(new Date(tweet.publishedAt))
       .setColor((config.discord.embedColor || '#1DA1F2') as `#${string}`);
 
     if (tweet.mediaUrls.length > 0 && tweet.mediaUrls[0]) {

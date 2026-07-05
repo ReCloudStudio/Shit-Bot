@@ -96,8 +96,11 @@ export function loadConfig(configPath?: string): AppConfig {
 
   const proxyUrl = rawConfig.proxy || process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
 
+  const debugMode = rawConfig.debugMode ?? (process.env.DEBUG_MODE === 'true' || process.env.DEBUG_MODE === '1');
+
   const loadedConfig = {
     ...rawConfig,
+    debugMode,
     proxy: proxyUrl,
     discord: {
       ...rawConfig.discord,
@@ -317,6 +320,7 @@ export function saveConfig(newConfig: AppConfig): void {
   rawConfigData.maxTweetAgeMinutes = newConfig.maxTweetAgeMinutes;
   rawConfigData.users = newConfig.users;
   rawConfigData.groups = newConfig.groups;
+  rawConfigData.debugMode = newConfig.debugMode;
   rawConfigData.plugins = newConfig.plugins;
   rawConfigData.pluginsDir = newConfig.pluginsDir;
 

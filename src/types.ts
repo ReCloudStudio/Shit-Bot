@@ -88,6 +88,7 @@ export interface PluginConfigEntry {
 }
 
 export interface AppConfig {
+  debugMode?: boolean;
   users?: UserConfig[];
   proxy?: string;
   discord: DiscordConfig;
@@ -145,4 +146,5 @@ export interface ProcessedTweet extends Tweet {
   matchedUser: UserConfig;
   passedFilters: boolean;
   filterReasons: string[];
+  _skipUserFilter?: boolean;
 }

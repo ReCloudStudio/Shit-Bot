@@ -42,3 +42,7 @@ Thumbs.db
 # Docs
 docs/.vitepress/*
 !docs/.vitepress/config.mts
+
+# Nix
+.direnv/
+result
