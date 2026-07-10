@@ -1,7 +1,7 @@
 import { logger } from '@/logger';
 import { getAiConfig } from './config';
 import { buildTools, executeTool, OpenAITool, ToolContext } from './tools';
-import { buildProfile, logConversation, getRecentConversation } from './memory';
+import { buildProfile, logConversation, getRecentConversation, getUserPronouns } from './memory';
 import { parseReplyJson, salvageReply, ReplyPayload } from './reactions';
 import { formatUtc8, nowUtc8 } from './time';
 import { fetchImageAsDataUri } from './websearch';
@@ -58,6 +58,10 @@ function buildMemorySystemMessage(
   injectRecent: boolean
 ): string | null {
   const profile = buildProfile(platform, username);
+  const pronouns = getUserPronouns(platform, username);
+  const pronounLine = pronouns
+    ? `对方偏好的代词（pronouns）是「${pronouns}」。在回复中提及对方时，务必使用正确的代词（如他/她/他们/TA）来指代。\n\n`
+    : '';
   const profileBlock = profile || '（暂无已知信息，请在对话中留意并积累。）';
   const historyGuide = injectRecent
     ? `紧接着会附上你们最近几轮对话，近期上下文可直接据此理解，无需查询。` +
@@ -65,6 +69,7 @@ function buildMemorySystemMessage(
     : `不会自动附上最近对话。区分两种"历史"：① 你和当前对话者本人的一对一私聊——当对方说"你刚才说的/你之前讲的/我们私聊的"时，调用 recall_memory（留空=返回你俩最近的私聊历史，或填关键词）。② 频道里多人之间的群聊——当对方说"刚才的聊天/我们刚聊的/上面的对话/我们的讨论/帮我看看上面"等（这类通常指频道群聊，而非你俩的私聊）时，调用 read_channel_history 读取频道消息再作答。`;
   return (
     `[私密背景 — 当前对话者的永久唯一标识是 @${username}（不可变，所有记忆都以它为准）；其昵称「${displayName}」只是会变的显示名，不要据此判断身份、也不要拿它去检索。请自然运用以下信息，切勿主动复述或说"你之前…"，像早已了解对方一样，润物细无声。]\n` +
+    pronounLine +
     `${profileBlock}\n\n` +
     historyGuide +
     `当你了解到值得长期记住的新信息、或发现旧信息有变化/有误时，请静默调用 save_memory / update_memory / forget_memory，不要在回复里提及这些操作。`

@@ -133,6 +133,24 @@ export function updateMemory(
   return 'updated';
 }
 
+export function getUserPronouns(platform: string, username: string): string | null {
+  ensureTables();
+  const row = getDatabase()
+    .query(
+      `SELECT value FROM ai_memories WHERE platform = ? AND username = ? AND key = 'pronouns' ORDER BY weight DESC LIMIT 1`
+    )
+    .get(platform, username) as { value: string } | undefined;
+  return row?.value || null;
+}
+
+export function saveUserPronouns(
+  platform: string,
+  username: string,
+  pronouns: string
+): { action: 'created' | 'updated' } {
+  return saveMemory(platform, username, 'pronouns', pronouns, 1.0);
+}
+
 export function deleteMemory(platform: string, username: string, key: string): boolean {
   ensureTables();
   const db = getDatabase();

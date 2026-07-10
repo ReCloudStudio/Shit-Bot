@@ -2,7 +2,7 @@ import { Client, TextChannel, Message, ChatInputCommandInteraction, MessageFlags
 import { logger } from '@/logger';
 import { getConfig } from "@/config";
 import { chatWithAI, isAiEnabled } from "./chat";
-import { listMemories, deleteMemory } from "./memory";
+import { listMemories, deleteMemory, getUserPronouns, saveUserPronouns } from "./memory";
 import { recordChannelMessage, getChannelMessageCount, getOldestStoredMessageId } from "./summary";
 import { formatUtc8 } from "./time";
 import { getAiConfig, invalidateAiConfigCache } from "./config";
@@ -115,6 +115,32 @@ async function handleDeleteMemoryCommand(interaction: ChatInputCommandInteractio
     content: ok ? `已删除记忆：${key}` : `没有找到记忆：${key}（可用 /memory 查看现有键）`,
     flags: MessageFlags.Ephemeral,
   });
+}
+
+async function handlePronounsCommand(interaction: ChatInputCommandInteraction): Promise<void> {
+  const username = interaction.user.username;
+  const pronouns = interaction.options.getString("pronouns");
+
+  if (pronouns) {
+    saveUserPronouns("discord", username, pronouns);
+    await interaction.reply({
+      content: `已设置你的代词为：「${pronouns}」。AI 回复将使用这些代词来指代你。`,
+      flags: MessageFlags.Ephemeral,
+    });
+  } else {
+    const current = getUserPronouns("discord", username);
+    if (current) {
+      await interaction.reply({
+        content: `你当前的代词是：「${current}」。\n使用 \`/pronouns 代词\` 来修改。`,
+        flags: MessageFlags.Ephemeral,
+      });
+    } else {
+      await interaction.reply({
+        content: `你还没有设置代词。使用 \`/pronouns 你的代词\` 来设置（例如：\`/pronouns 她\` 或 \`/pronouns they/them\`）。`,
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+  }
 }
 
 export default {
@@ -253,6 +279,8 @@ export default {
           await handleMemoryCommand(interaction).catch((e) => logger.error("AI", "memory 命令错误:", e));
         } else if (interaction.commandName === "delete-memory") {
           await handleDeleteMemoryCommand(interaction).catch((e) => logger.error("AI", "delete-memory 命令错误:", e));
+        } else if (interaction.commandName === "pronouns") {
+          await handlePronounsCommand(interaction).catch((e) => logger.error("AI", "pronouns 命令错误:", e));
         }
       });
 
@@ -265,6 +293,18 @@ export default {
         {
           name: "memory",
           description: "查看 AI 对你的全部记忆",
+        },
+        {
+          name: "pronouns",
+          description: "设置或查看你的代词 (pronouns) 以便 AI 正确称呼",
+          options: [
+            {
+              name: "pronouns",
+              description: "你的代词，如「他」「她」「他们」「they/them」等",
+              type: 3,
+              required: false,
+            },
+          ],
         },
         {
           name: "delete-memory",
