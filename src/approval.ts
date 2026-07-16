@@ -1066,7 +1066,6 @@ async function handleDiscordApprovalImpl(interaction: ButtonInteraction): Promis
     );
     logger.info("审批", `[审批] ${adminName} 已拒绝 (Discord) [${pending.groupName}]: ${approvalId}`);
     deletePendingApproval(approvalId);
-    // try { await interaction.message.edit({ content: `❌ ${adminName} 已拒绝`, components: [] }); } catch {}
   }
 }
 
