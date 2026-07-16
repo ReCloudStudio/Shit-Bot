@@ -1,5 +1,5 @@
 import { Context, Markup } from "telegraf";
-import { logger } from '@/logger';
+import { logger } from "@/logger";
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -13,8 +13,8 @@ import {
   ChatInputCommandInteraction,
   MessageContextMenuCommandInteraction,
 } from "discord.js";
-import { executeHook, executeBeforeSendHook, executeBeforeApprovalHook } from '@/plugins';
-import { sendToOneBot, sendTextToOneBot, deleteOneBotMessage, isOneBotConnected } from '@/bots/onebot';
+import { executeHook, executeBeforeSendHook, executeBeforeApprovalHook } from "@/plugins";
+import { sendToOneBot, sendTextToOneBot, deleteOneBotMessage, isOneBotConnected } from "@/bots/onebot";
 import { ProcessedTweet, GroupConfig } from "./types";
 import { getConfig, getEffectiveGroups } from "./config";
 import { formatTweetHTML, escapeHTML, formatContentForPlatform } from "./filters";
@@ -89,16 +89,16 @@ function loadApproval(id: string): PendingApproval | undefined {
   }
   try {
     const tweet = JSON.parse(p.tweetJson) as ProcessedTweet;
-    if (typeof tweet.publishedAt === 'string') {
+    if (typeof tweet.publishedAt === "string") {
       tweet.publishedAt = new Date(tweet.publishedAt);
     }
     return {
       id: p.approvalId,
       groupName: p.groupName,
       tweet,
-      telegramMessageIds: new Map(Object.entries(JSON.parse(p.telegramMsgIds || '{}'))),
-      discordMessageIds: new Map(Object.entries(JSON.parse(p.discordMsgIds || '{}'))),
-      onebotMessageIds: new Map(Object.entries(JSON.parse(p.onebotMsgIds || '{}'))),
+      telegramMessageIds: new Map(Object.entries(JSON.parse(p.telegramMsgIds || "{}"))),
+      discordMessageIds: new Map(Object.entries(JSON.parse(p.discordMsgIds || "{}"))),
+      onebotMessageIds: new Map(Object.entries(JSON.parse(p.onebotMsgIds || "{}"))),
       createdAt: new Date(p.createdAt),
       approved: p.approved !== 0,
       approvedBy: p.approvedBy || undefined,
@@ -180,8 +180,14 @@ function getGroupTargetTags(group: GroupConfig): { tag: string; telegram: boolea
   return tags;
 }
 
-function withTimeoutResult<T>(promise: Promise<T>, ms: number, label: string, results: TargetResult[], tweetUrl?: string): Promise<void> {
-  const urlSuffix = tweetUrl ? ` (${tweetUrl})` : '';
+function withTimeoutResult<T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string,
+  results: TargetResult[],
+  tweetUrl?: string,
+): Promise<void> {
+  const urlSuffix = tweetUrl ? ` (${tweetUrl})` : "";
 
   return Promise.race([
     promise.then((val) => {
@@ -282,7 +288,7 @@ async function dispatchGroupDirect(
       logger.error("审批", `[死信] [直发]: 推文=${tweet.id} 目标=${r.label} 错误=${r.error || "未知"}`);
       storeDeadLetter(tweet.id, r.label, group.name, r.error || "未知");
     }
-    await executeHook('onAfterTweetSend', tweet, group, { target: r.label, success: r.success, error: r.error });
+    await executeHook("onAfterTweetSend", tweet, group, { target: r.label, success: r.success, error: r.error });
   }
 }
 
@@ -311,7 +317,12 @@ export async function sendForApproval(tweet: ProcessedTweet): Promise<boolean> {
       continue;
     }
 
-    if (group.users && group.users.length > 0 && !group.users.some((u) => u.username === tweet.author) && !tweet._skipUserFilter) {
+    if (
+      group.users &&
+      group.users.length > 0 &&
+      !group.users.some((u) => u.username === tweet.author) &&
+      !tweet._skipUserFilter
+    ) {
       continue;
     }
 
@@ -404,92 +415,92 @@ export async function sendForApproval(tweet: ProcessedTweet): Promise<boolean> {
       if (!discordClientInstance) {
         logger.error("审批", `[审批] 群组 ${group.name}: Discord 客户端未就绪, 审批通知无法发送`);
       } else {
-      try {
-        const channel = await discordClientInstance.channels.fetch(group.approval.discordAdminChannelId);
-        if (channel && channel.isTextBased()) {
-          const hasExplicitGroups = !!(config.groups && config.groups.length > 0);
+        try {
+          const channel = await discordClientInstance.channels.fetch(group.approval.discordAdminChannelId);
+          if (channel && channel.isTextBased()) {
+            const hasExplicitGroups = !!(config.groups && config.groups.length > 0);
 
-          const title = hasExplicitGroups ? `📮 待审批 — ${escapeHTML(group.name)}` : "📮 待审批";
+            const title = hasExplicitGroups ? `📮 待审批 — ${escapeHTML(group.name)}` : "📮 待审批";
 
-          const embed = new EmbedBuilder()
-            .setTitle(title)
-            .setAuthor({
-              name: `@${tweet.author}`,
-              url: `https://x.com/${tweet.author}`,
-              iconURL: `https://unavatar.io/twitter/${tweet.author}`,
-            })
-            .setURL(tweet.url)
-            .setTimestamp(new Date(tweet.publishedAt))
-            .setColor("#FFA500")
-            .setFooter({ text: `ID: ${approvalId}` });
+            const embed = new EmbedBuilder()
+              .setTitle(title)
+              .setAuthor({
+                name: `@${tweet.author}`,
+                url: `https://x.com/${tweet.author}`,
+                iconURL: `https://unavatar.io/twitter/${tweet.author}`,
+              })
+              .setURL(tweet.url)
+              .setTimestamp(new Date(tweet.publishedAt))
+              .setColor("#FFA500")
+              .setFooter({ text: `ID: ${approvalId}` });
 
-          if (useImage && imageBuffer) {
-            embed.setDescription(`[🔗 在 X 上查看](${tweet.url})`);
-          } else {
-            embed.setDescription(formatContentForPlatform(tweet.content.substring(0, 2000), "discord"));
-          }
-
-          const tags = getGroupTargetTags(group);
-          const rows: ActionRowBuilder<ButtonBuilder>[] = [];
-
-          if (tags.length > 0) {
-            const postRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-              new ButtonBuilder()
-                .setCustomId(`approve_${approvalId}`)
-                .setLabel("📢 全部发送")
-                .setStyle(ButtonStyle.Success),
-            );
-            for (const t of tags) {
-          const label = t.tag === "r14" ? "🔞 发送 R14" : `📢 发送 ${t.tag.toUpperCase()}`;
-              postRow.addComponents(
-                new ButtonBuilder()
-                  .setCustomId(`post_${t.tag}|${approvalId}`)
-                  .setLabel(label)
-                  .setStyle(ButtonStyle.Primary),
-              );
+            if (useImage && imageBuffer) {
+              embed.setDescription(`[🔗 在 X 上查看](${tweet.url})`);
+            } else {
+              embed.setDescription(formatContentForPlatform(tweet.content.substring(0, 2000), "discord"));
             }
-            postRow.addComponents(
-              new ButtonBuilder()
-                .setCustomId(`reject_${approvalId}`)
-                .setLabel("❌ 拒绝")
-                .setStyle(ButtonStyle.Danger),
-            );
-            rows.push(postRow);
-          } else {
-            rows.push(
-              new ActionRowBuilder<ButtonBuilder>().addComponents(
+
+            const tags = getGroupTargetTags(group);
+            const rows: ActionRowBuilder<ButtonBuilder>[] = [];
+
+            if (tags.length > 0) {
+              const postRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
                 new ButtonBuilder()
                   .setCustomId(`approve_${approvalId}`)
-                  .setLabel("📢 发送")
+                  .setLabel("📢 全部发送")
                   .setStyle(ButtonStyle.Success),
+              );
+              for (const t of tags) {
+                const label = t.tag === "r14" ? "🔞 发送 R14" : `📢 发送 ${t.tag.toUpperCase()}`;
+                postRow.addComponents(
+                  new ButtonBuilder()
+                    .setCustomId(`post_${t.tag}|${approvalId}`)
+                    .setLabel(label)
+                    .setStyle(ButtonStyle.Primary),
+                );
+              }
+              postRow.addComponents(
                 new ButtonBuilder()
                   .setCustomId(`reject_${approvalId}`)
                   .setLabel("❌ 拒绝")
                   .setStyle(ButtonStyle.Danger),
-              ),
-            );
+              );
+              rows.push(postRow);
+            } else {
+              rows.push(
+                new ActionRowBuilder<ButtonBuilder>().addComponents(
+                  new ButtonBuilder()
+                    .setCustomId(`approve_${approvalId}`)
+                    .setLabel("📢 发送")
+                    .setStyle(ButtonStyle.Success),
+                  new ButtonBuilder()
+                    .setCustomId(`reject_${approvalId}`)
+                    .setLabel("❌ 拒绝")
+                    .setStyle(ButtonStyle.Danger),
+                ),
+              );
+            }
+
+            let files: AttachmentBuilder[] | undefined;
+
+            if (useImage && imageBuffer) {
+              const attachment = new AttachmentBuilder(imageBuffer, { name: `tweet_${tweet.id}.png` });
+              embed.setImage(`attachment://tweet_${tweet.id}.png`);
+              files = [attachment];
+            }
+
+            const sentMessage = await (channel as TextChannel).send({
+              embeds: [embed],
+              components: rows,
+              files,
+            });
+
+            discordMessageIds.set(group.approval.discordAdminChannelId, sentMessage.id);
+            sentToDiscord = true;
           }
-
-          let files: AttachmentBuilder[] | undefined;
-
-          if (useImage && imageBuffer) {
-            const attachment = new AttachmentBuilder(imageBuffer, { name: `tweet_${tweet.id}.png` });
-            embed.setImage(`attachment://tweet_${tweet.id}.png`);
-            files = [attachment];
-          }
-
-          const sentMessage = await (channel as TextChannel).send({
-            embeds: [embed],
-            components: rows,
-            files,
-          });
-
-          discordMessageIds.set(group.approval.discordAdminChannelId, sentMessage.id);
-          sentToDiscord = true;
+        } catch (error) {
+          logger.error("审批", `[审批] 向 Discord 群组 ${group.name} 发送审批消息失败:`, error);
         }
-      } catch (error) {
-        logger.error("审批", `[审批] 向 Discord 群组 ${group.name} 发送审批消息失败:`, error);
-      }
       }
     }
 
@@ -534,7 +545,9 @@ export async function sendForApproval(tweet: ProcessedTweet): Promise<boolean> {
     }
 
     if (!sentToTelegram && !sentToDiscord && !sentToOneBot) {
-      const hasApprovalConfig = !!(group.approval?.telegramAdminChatIds?.length || group.approval?.discordAdminChannelId);
+      const hasApprovalConfig = !!(
+        group.approval?.telegramAdminChatIds?.length || group.approval?.discordAdminChannelId
+      );
       if (hasApprovalConfig) {
         logger.error("审批", `[审批] 群组 ${group.name}: 审批通知发送失败, 跳过此推文`);
         continue;
@@ -555,7 +568,7 @@ async function notifyOtherAdmins(
   sentTo?: string,
 ): Promise<void> {
   const statusEmoji = action === "approved" ? "✅" : "❌";
-      const statusText = action === "approved" ? "已批准" : "已拒绝";
+  const statusText = action === "approved" ? "已批准" : "已拒绝";
   const sentToStr = sentTo ? ` → ${sentTo}` : "";
   const cfg = getConfig();
   const hasExplicitGroups = !!(cfg.groups && cfg.groups.length > 0);
@@ -579,7 +592,7 @@ async function notifyOtherAdmins(
     const showRecallButton = action === "approved";
     const replyMarkup = showRecallButton
       ? {
-            reply_markup: Markup.inlineKeyboard([Markup.button.callback("↩️ 撤回", `recall_${approval.id}`)])
+          reply_markup: Markup.inlineKeyboard([Markup.button.callback("↩️ 撤回", `recall_${approval.id}`)])
             .reply_markup,
         }
       : {};
@@ -655,16 +668,16 @@ async function notifyOtherAdmins(
     const tweet = approval.tweet;
     const notification = [
       `${statusEmoji} 推文 ${statusText}${sentToStr}${groupLabel}`,
-      '',
+      "",
       `@${tweet.author}`,
       tweet.url,
-      '',
+      "",
       `操作人: ${actionBy}`,
       `ID: ${approval.id}`,
       `时间: ${approval.createdAt.toLocaleString()}`,
-      '',
-      tweet.content.substring(0, 100) + (tweet.content.length > 100 ? '...' : ''),
-    ].join('\n');
+      "",
+      tweet.content.substring(0, 100) + (tweet.content.length > 100 ? "..." : ""),
+    ].join("\n");
 
     for (const [groupId, messageId] of approval.onebotMessageIds) {
       try {
@@ -843,16 +856,22 @@ async function dispatchToTargets(pending: PendingApproval, targetTag?: string): 
 
   for (const r of results) {
     if (!r.success) {
-      logger.error("审批",
+      logger.error(
+        "审批",
         `[死信] [审批=${pending.id}]: 推文=${pending.tweet.id} 目标=${r.label} 错误=${r.error || "未知"}`,
       );
       storeDeadLetter(pending.tweet.id, r.label, pending.groupName, r.error || "未知");
     }
-    await executeHook('onAfterTweetSend', pending.tweet, group, { target: r.label, success: r.success, error: r.error });
+    await executeHook("onAfterTweetSend", pending.tweet, group, {
+      target: r.label,
+      success: r.success,
+      error: r.error,
+    });
   }
 
   if (failed > 0) {
-    logger.error("审批",
+    logger.error(
+      "审批",
       `[调度] 审批 ${pending.id}: ${succeeded}/${promises.length + results.filter((r) => !r.success && !promises.length).length} 成功, ${failed} 失败`,
     );
   }
@@ -911,13 +930,28 @@ export async function handleTelegramApproval(ctx: Context): Promise<void> {
 
     markApprovalDone(pending.id, adminName, pending.sentTo);
     await notifyOtherAdmins(pending, adminName, "approved", pending.sentTo);
-    await executeHook('onApprovalResult', pending.tweet, { name: pending.groupName } as GroupConfig, true, adminName, targetTag);
-    logger.info("审批",
+    await executeHook(
+      "onApprovalResult",
+      pending.tweet,
+      { name: pending.groupName } as GroupConfig,
+      true,
+      adminName,
+      targetTag,
+    );
+    logger.info(
+      "审批",
       `[审批] ${adminName} 已批准 (Telegram) [${pending.groupName}]: ${approvalId}${targetTag ? ` → ${targetTag}` : ""} — ${results.succeeded}/${results.total} 发送成功`,
     );
   } else {
     await notifyOtherAdmins(pending, adminName, "rejected");
-    await executeHook('onApprovalResult', pending.tweet, { name: pending.groupName } as GroupConfig, false, adminName, targetTag);
+    await executeHook(
+      "onApprovalResult",
+      pending.tweet,
+      { name: pending.groupName } as GroupConfig,
+      false,
+      adminName,
+      targetTag,
+    );
     logger.info("审批", `[审批] ${adminName} 已拒绝 (Telegram) [${pending.groupName}]: ${approvalId}`);
     deletePendingApproval(approvalId);
   }
@@ -938,7 +972,9 @@ async function handleDiscordApprovalImpl(interaction: ButtonInteraction): Promis
   if (!isConfiguredAdminChannel(interaction.channelId)) return;
 
   // 尝试确认交互，Bun 运行时下 interaction 可能已被自动确认
-  try { await interaction.deferUpdate(); } catch {}
+  try {
+    await interaction.deferUpdate();
+  } catch {}
 
   const sendMatch = customId.match(/^post_(.+)\|(.+)$/);
   const isApprove = customId.startsWith("approve_");
@@ -957,35 +993,44 @@ async function handleDiscordApprovalImpl(interaction: ButtonInteraction): Promis
     approvalId = customId.replace(/^(approve_|reject_)/, "");
   }
 
-    const pending = loadApproval(approvalId);
+  const pending = loadApproval(approvalId);
 
-    if (!pending) {
-      getConfig().debugMode && logger.warn("审批", `[审批] Discord approve 记录未找到: ${approvalId}`);
-      try { await interaction.message.edit({ content: "⚠️ 审批记录未找到或已过期", components: [] }); } catch {}
-      return;
-    }
-    getConfig().debugMode && logger.info("审批", `[审批] Discord approve 记录已找到: ${approvalId}, approved=${pending.approved}`);
+  if (!pending) {
+    getConfig().debugMode && logger.warn("审批", `[审批] Discord approve 记录未找到: ${approvalId}`);
+    try {
+      await interaction.message.edit({ content: "⚠️ 审批记录未找到或已过期", components: [] });
+    } catch {}
+    return;
+  }
+  getConfig().debugMode &&
+    logger.info("审批", `[审批] Discord approve 记录已找到: ${approvalId}, approved=${pending.approved}`);
 
-    if (pending.approved) {
-      getConfig().debugMode && logger.warn("审批", `[审批] Discord approve 已处理过: ${approvalId}`);
-      try { await interaction.message.edit({ content: "⚠️ 这条推文已经被审批过了", components: [] }); } catch {}
-      return;
-    }
-    getConfig().debugMode && logger.info("审批", `[审批] Discord approve 继续执行: ${approvalId}`);
+  if (pending.approved) {
+    getConfig().debugMode && logger.warn("审批", `[审批] Discord approve 已处理过: ${approvalId}`);
+    try {
+      await interaction.message.edit({ content: "⚠️ 这条推文已经被审批过了", components: [] });
+    } catch {}
+    return;
+  }
+  getConfig().debugMode && logger.info("审批", `[审批] Discord approve 继续执行: ${approvalId}`);
 
-    const config = getConfig();
+  const config = getConfig();
   const group = getEffectiveGroups().find((g) => g.name === pending.groupName);
 
   if (group?.approval?.discordApproveRoleId) {
     const member = interaction.member;
     if (!member || !("roles" in member) || !(member.roles as any).cache?.has(group.approval.discordApproveRoleId)) {
-      try { await interaction.followUp({ content: "❌ 你没有审批权限", flags: MessageFlags.Ephemeral }); } catch {}
+      try {
+        await interaction.followUp({ content: "❌ 你没有审批权限", flags: MessageFlags.Ephemeral });
+      } catch {}
       return;
     }
   } else if (config.discord.approveRoleId) {
     const member = interaction.member;
     if (!member || !("roles" in member) || !(member.roles as any).cache?.has(config.discord.approveRoleId)) {
-      try { await interaction.followUp({ content: "❌ 你没有审批权限", flags: MessageFlags.Ephemeral }); } catch {}
+      try {
+        await interaction.followUp({ content: "❌ 你没有审批权限", flags: MessageFlags.Ephemeral });
+      } catch {}
       return;
     }
   }
@@ -997,16 +1042,31 @@ async function handleDiscordApprovalImpl(interaction: ButtonInteraction): Promis
 
     markApprovalDone(pending.id, adminName, pending.sentTo);
     await notifyOtherAdmins(pending, adminName, "approved", pending.sentTo);
-    await executeHook('onApprovalResult', pending.tweet, { name: pending.groupName } as GroupConfig, true, adminName, targetTag);
-    logger.info("审批",
+    await executeHook(
+      "onApprovalResult",
+      pending.tweet,
+      { name: pending.groupName } as GroupConfig,
+      true,
+      adminName,
+      targetTag,
+    );
+    logger.info(
+      "审批",
       `[审批] ${adminName} 已批准 (Discord) [${pending.groupName}]: ${approvalId}${targetTag ? ` → ${targetTag}` : ""} — ${results.succeeded}/${results.total} 发送成功`,
     );
   } else {
     await notifyOtherAdmins(pending, adminName, "rejected");
-    await executeHook('onApprovalResult', pending.tweet, { name: pending.groupName } as GroupConfig, false, adminName, targetTag);
+    await executeHook(
+      "onApprovalResult",
+      pending.tweet,
+      { name: pending.groupName } as GroupConfig,
+      false,
+      adminName,
+      targetTag,
+    );
     logger.info("审批", `[审批] ${adminName} 已拒绝 (Discord) [${pending.groupName}]: ${approvalId}`);
     deletePendingApproval(approvalId);
-    try { await interaction.message.edit({ content: `❌ ${adminName} 已拒绝`, components: [] }); } catch {}
+    // try { await interaction.message.edit({ content: `❌ ${adminName} 已拒绝`, components: [] }); } catch {}
   }
 }
 
@@ -1260,9 +1320,7 @@ async function notifyRecallAdmins(approval: PendingApproval, adminName: string, 
         iconURL: `https://unavatar.io/twitter/${tweet.author}`,
       })
       .setURL(tweet.url)
-      .addFields(
-        { name: "操作人", value: adminName, inline: true },
-      )
+      .addFields({ name: "操作人", value: adminName, inline: true })
       .setColor("#FFA500");
 
     for (const [channelId, messageId] of approval.discordMessageIds) {
@@ -1310,7 +1368,8 @@ export async function handleTelegramRecall(ctx: Context): Promise<void> {
 
   const deleted = await recallDispatchedMessages(approvalId);
   await notifyRecallAdmins(pending, adminName, deleted);
-  logger.info("审批",
+  logger.info(
+    "审批",
     `[撤回] ${adminName} (Telegram) [${pending.groupName}]: ${approvalId} — 已删除 ${deleted} 条消息`,
   );
 }
@@ -1324,7 +1383,9 @@ export async function handleDiscordRecall(interaction: ButtonInteraction): Promi
     if (!isConfiguredAdminChannel(interaction.channelId)) return;
 
     // Bun 运行时下 interaction 可能已被自动确认
-    try { await interaction.deferUpdate(); } catch {}
+    try {
+      await interaction.deferUpdate();
+    } catch {}
 
     const approvalId = customId.replace("recall_", "");
     getConfig().debugMode && logger.info("审批", `[撤回] Discord 开始处理: ${approvalId}`);
@@ -1332,14 +1393,19 @@ export async function handleDiscordRecall(interaction: ButtonInteraction): Promi
 
     if (!pending) {
       getConfig().debugMode && logger.warn("审批", `[撤回] Discord 审批记录未找到: ${approvalId}`);
-      try { await interaction.followUp({ content: "审批记录未找到或已过期", flags: MessageFlags.Ephemeral }); } catch {}
+      try {
+        await interaction.followUp({ content: "审批记录未找到或已过期", flags: MessageFlags.Ephemeral });
+      } catch {}
       return;
     }
-    getConfig().debugMode && logger.info("审批", `[撤回] Discord 记录已找到: ${approvalId}, approved=${pending.approved}`);
+    getConfig().debugMode &&
+      logger.info("审批", `[撤回] Discord 记录已找到: ${approvalId}, approved=${pending.approved}`);
 
     if (!pending.approved) {
       getConfig().debugMode && logger.warn("审批", `[撤回] Discord 尚未批准: ${approvalId}`);
-      try { await interaction.followUp({ content: "该推文尚未被批准", flags: MessageFlags.Ephemeral }); } catch {}
+      try {
+        await interaction.followUp({ content: "该推文尚未被批准", flags: MessageFlags.Ephemeral });
+      } catch {}
       return;
     }
     getConfig().debugMode && logger.info("审批", `[撤回] Discord 继续执行撤回: ${approvalId}`);
@@ -1347,7 +1413,8 @@ export async function handleDiscordRecall(interaction: ButtonInteraction): Promi
     const adminName = getDiscordAdminName(interaction);
     const deleted = await recallDispatchedMessages(approvalId);
     await notifyRecallAdmins(pending, adminName, deleted);
-    logger.info("审批",
+    logger.info(
+      "审批",
       `[撤回] ${adminName} (Discord) [${pending.groupName}]: ${approvalId} — 已删除 ${deleted} 条消息`,
     );
   } catch (error) {
@@ -1381,7 +1448,12 @@ export async function sendToAllGroups(tweet: ProcessedTweet, targetTag?: string)
       continue;
     }
 
-    if (group.users && group.users.length > 0 && !group.users.some((u) => u.username === tweet.author) && !tweet._skipUserFilter) {
+    if (
+      group.users &&
+      group.users.length > 0 &&
+      !group.users.some((u) => u.username === tweet.author) &&
+      !tweet._skipUserFilter
+    ) {
       continue;
     }
 
@@ -1454,7 +1526,12 @@ export async function sendToAllGroups(tweet: ProcessedTweet, targetTag?: string)
   }
 }
 
-export async function handleOneBotApproval(approvalId: string, userId: number, groupId: number, reject = false): Promise<void> {
+export async function handleOneBotApproval(
+  approvalId: string,
+  userId: number,
+  groupId: number,
+  reject = false,
+): Promise<void> {
   const approval = loadApproval(approvalId);
   if (!approval) {
     logger.warn("审批", `[OneBot] 审批 ${approvalId} 不存在或已处理`);
@@ -1465,7 +1542,12 @@ export async function handleOneBotApproval(approvalId: string, userId: number, g
   await processApproval(approval, reject, `OneBot用户${userId}`, groupId);
 }
 
-async function processApproval(approval: PendingApproval, reject: boolean, actionBy: string, groupId?: number): Promise<void> {
+async function processApproval(
+  approval: PendingApproval,
+  reject: boolean,
+  actionBy: string,
+  groupId?: number,
+): Promise<void> {
   if (approval.approved) {
     if (groupId) {
       await sendTextToOneBot(`⚠️ 审批 ${approval.id} 已被处理`, groupId);
@@ -1479,11 +1561,15 @@ async function processApproval(approval: PendingApproval, reject: boolean, actio
   if (reject) {
     logger.info("审批", `[审批] 推文 ${approval.tweet.id} 被拒绝 (操作人: ${actionBy})`);
     deletePendingApproval(approval.id);
-    await notifyOtherAdmins(approval, actionBy, 'rejected');
+    await notifyOtherAdmins(approval, actionBy, "rejected");
   } else {
     logger.info("审批", `[审批] 推文 ${approval.tweet.id} 已批准 (操作人: ${actionBy})`);
     const results = await dispatchToTargets(approval);
-    approval.sentTo = results.targets.filter((r) => r.success).map((r) => r.label).join(', ') || '无';
-    await notifyOtherAdmins(approval, actionBy, 'approved', approval.sentTo);
+    approval.sentTo =
+      results.targets
+        .filter((r) => r.success)
+        .map((r) => r.label)
+        .join(", ") || "无";
+    await notifyOtherAdmins(approval, actionBy, "approved", approval.sentTo);
   }
 }
