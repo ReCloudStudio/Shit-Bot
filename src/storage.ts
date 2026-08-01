@@ -398,6 +398,20 @@ export function markApprovalDone(approvalId: string, approvedBy?: string, sentTo
   );
 }
 
+/**
+ * 原子性地"认领"一条待审批记录: 仅当当前 approved = 0 时将其置为 1。
+ * 返回 true 表示认领成功(本次调用抢到了处理权), false 表示已被其他处理者认领。
+ * 用于防止重复点击审批按钮导致同一推文被发送多次的竞态问题。
+ */
+export function claimApproval(approvalId: string): boolean {
+  const database = getDatabase();
+  const result = database.run(
+    `UPDATE pending_approvals SET approved = 1 WHERE approval_id = ? AND approved = 0`,
+    [approvalId]
+  );
+  return result.changes > 0;
+}
+
 export function deletePendingApproval(approvalId: string | null | undefined): void {
   if (!approvalId) return;
   const database = getDatabase();

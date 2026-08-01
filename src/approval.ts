@@ -33,6 +33,7 @@ import {
   storePendingApproval,
   deletePendingApproval,
   markApprovalDone,
+  claimApproval,
   getAllPendingApprovals,
   getPendingApproval,
   hasPendingApprovalForTweet,
@@ -926,6 +927,16 @@ export async function handleTelegramApproval(ctx: Context): Promise<void> {
   const adminName = getTelegramAdminName(ctx);
 
   if (!isReject) {
+    // 原子性认领, 防止连续点击导致同一推文被发送多次
+    if (!claimApproval(pending.id)) {
+      try {
+        await ctx.answerCbQuery("这条推文已经被审批过了");
+      } catch (e) {
+        // ignore
+      }
+      return;
+    }
+
     const results = await dispatchToTargets(pending, targetTag);
 
     markApprovalDone(pending.id, adminName, pending.sentTo);
@@ -1038,6 +1049,15 @@ async function handleDiscordApprovalImpl(interaction: ButtonInteraction): Promis
   const adminName = getDiscordAdminName(interaction);
 
   if (!isReject) {
+    // 原子性认领, 防止连续点击导致同一推文被发送多次
+    if (!claimApproval(pending.id)) {
+      getConfig().debugMode && logger.warn("审批", `[审批] Discord approve 已被其他处理者认领: ${approvalId}`);
+      try {
+        await interaction.message.edit({ content: "⚠️ 这条推文已经被审批过了", components: [] });
+      } catch {}
+      return;
+    }
+
     const results = await dispatchToTargets(pending, targetTag);
 
     markApprovalDone(pending.id, adminName, pending.sentTo);
@@ -1562,6 +1582,14 @@ async function processApproval(
     deletePendingApproval(approval.id);
     await notifyOtherAdmins(approval, actionBy, "rejected");
   } else {
+    // 原子性认领, 防止连续操作导致同一推文被发送多次
+    if (!claimApproval(approval.id)) {
+      logger.warn("审批", `[审批] 推文 ${approval.tweet.id} 已被其他处理者认领, 跳过 (操作人: ${actionBy})`);
+      if (groupId) {
+        await sendTextToOneBot(`⚠️ 审批 ${approval.id} 已被处理`, groupId);
+      }
+      return;
+    }
     logger.info("审批", `[审批] 推文 ${approval.tweet.id} 已批准 (操作人: ${actionBy})`);
     const results = await dispatchToTargets(approval);
     approval.sentTo =
