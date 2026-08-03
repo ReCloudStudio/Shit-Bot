@@ -54,59 +54,61 @@ async function getClient(): Promise<JmApiClient> {
   return clientPromise;
 }
 
-/** 获取指定来源的榜单本子 id 列表（按榜单顺序，已过滤掉重复 id；主源为空时自动回退） */
+/** 获取指定来源的榜单本子 id 列表（按榜单顺序跨页拉取，已过滤掉重复 id；主源为空时自动回退） */
 export async function fetchDailyAlbumIds(source: JmDailySource, limit: number): Promise<string[]> {
   const client = await getClient();
   for (const s of SOURCE_CHAIN[source]) {
-    const ids = await fetchIdsForSource(s, limit, client);
+    const ids: string[] = [];
+    const seen = new Set<string>();
+    for (let page = 1; ids.length < limit; page++) {
+      const pageIds = await fetchIdsPage(s, page, client);
+      if (pageIds.length === 0) break;
+      for (const id of pageIds) {
+        const key = String(id);
+        if (!seen.has(key)) {
+          seen.add(key);
+          ids.push(key);
+        }
+        if (ids.length >= limit) break;
+      }
+    }
     if (ids.length > 0) return ids;
   }
   return [];
 }
 
-/** 拉取单个来源的榜单 id 列表（日/周/月榜走专用 API，人气/最新走 categoriesFilter） */
-async function fetchIdsForSource(source: JmDailySource, limit: number, client: JmApiClient): Promise<string[]> {
-  let page: unknown;
+/** 拉取指定来源某一页的榜单 id 列表（日/周/月榜走专用 API，人气/最新走 categoriesFilter） */
+async function fetchIdsPage(source: JmDailySource, page: number, client: JmApiClient): Promise<string[]> {
+  let data: unknown;
   switch (source) {
     case "daily":
-      page = await client.dayRanking(1);
+      data = await client.dayRanking(page);
       break;
     case "week":
-      page = await client.weekRanking(1);
+      data = await client.weekRanking(page);
       break;
     case "month":
-      page = await client.monthRanking(1);
+      data = await client.monthRanking(page);
       break;
     case "popular":
-      page = await client.categoriesFilter(
-        1,
+      data = await client.categoriesFilter(
+        page,
         JmMagicConstants.TIME_ALL,
         JmMagicConstants.CATEGORY_ALL,
         JmMagicConstants.ORDER_BY_VIEW,
       );
       break;
     case "latest":
-      page = await client.categoriesFilter(
-        1,
+      data = await client.categoriesFilter(
+        page,
         JmMagicConstants.TIME_ALL,
         JmMagicConstants.CATEGORY_ALL,
         JmMagicConstants.ORDER_BY_LATEST,
       );
       break;
   }
-  const content = (page as unknown as { content: [string, Record<string, any>][] }).content ?? [];
-
-  const ids: string[] = [];
-  const seen = new Set<string>();
-  for (const [id] of content) {
-    const key = String(id);
-    if (!seen.has(key)) {
-      seen.add(key);
-      ids.push(key);
-    }
-    if (ids.length >= limit) break;
-  }
-  return ids;
+  const content = (data as unknown as { content: [string, Record<string, any>][] }).content ?? [];
+  return content.map(([id]) => String(id)).filter(Boolean);
 }
 
 /** 获取本子详情（走 /album 原始 API，规避实体解析 bug） */

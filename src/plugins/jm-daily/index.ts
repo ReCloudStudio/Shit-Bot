@@ -133,6 +133,46 @@ function filterExcluded(albums: JmAlbumSummary[], excludeTags: string[]): JmAlbu
   return albums.filter((album) => !album.tags.some((tag) => excludeTags.includes(tag)));
 }
 
+/**
+ * 拉取并收集本子详情，直到攒够 limit 本。
+ * 被去重/详情失败/excludeTags 排除的本子会跳过，并继续往后拉取补足数量。
+ */
+async function collectTopAlbums(
+  source: JmDailySource,
+  limit: number,
+  dedupe: boolean,
+  excludeTags: string[],
+): Promise<JmAlbumSummary[]> {
+  const albums: JmAlbumSummary[] = [];
+  const fetched = new Set<string>();
+  let windowSize = limit;
+  let guard = 0;
+
+  while (albums.length < limit && guard < 10) {
+    guard++;
+    const ids = await fetchDailyAlbumIds(source, windowSize);
+    if (ids.length === 0) break;
+
+    const freshIds = ids.filter((id) => {
+      if (fetched.has(id)) return false;
+      fetched.add(id);
+      return !dedupe || !isAlreadySent(id);
+    });
+    if (freshIds.length === 0) break;
+
+    const summaries = await collectAlbums(freshIds);
+    for (const album of summaries) {
+      if (!filterExcluded([album], excludeTags).length) continue;
+      albums.push(album);
+      if (albums.length >= limit) break;
+    }
+
+    windowSize = Math.min(windowSize + limit, 500);
+  }
+
+  return albums;
+}
+
 /** 发送并记录去重，返回成功发送数 */
 async function dispatchAlbums(
   albums: JmAlbumSummary[],
@@ -179,27 +219,13 @@ async function runDaily(): Promise<void> {
       return;
     }
 
-    // 1. 获取榜单 id 列表
-    const ids = await fetchDailyAlbumIds(cfg.source, cfg.limit);
-    if (ids.length === 0) {
-      pluginApi.logger.warn("榜单为空，跳过本次");
-      return;
-    }
-    pluginApi.logger.info(`榜单获取到 ${ids.length} 本: ${ids.map((i) => `JM${i}`).join(", ")}`);
-
-    // 2. 去重过滤
-    const freshIds = cfg.dedupe ? ids.filter((id) => !isAlreadySent(id)) : ids;
-    if (freshIds.length === 0) {
-      pluginApi.logger.info("没有新的本子需要发送（均已发送过）");
-      return;
-    }
-
-    // 3. 抓取详情 + 按 excludeTags 过滤
-    const albums = filterExcluded(await collectAlbums(freshIds), cfg.excludeTags);
+    // 1+2+3. 拉取榜单 → 去重 → 抓详情 → 按 excludeTags 过滤，数量不足时自动往后补足
+    const albums = await collectTopAlbums(cfg.source, cfg.limit, cfg.dedupe, cfg.excludeTags);
     if (albums.length === 0) {
-      pluginApi.logger.warn("详情获取全部失败或全部被 excludeTags 过滤，跳过发送");
+      pluginApi.logger.warn("没有可发送的本子（榜单为空 / 均已发送过 / 全部被 excludeTags 过滤）");
       return;
     }
+    pluginApi.logger.info(`已获取 ${albums.length} 本: ${albums.map((a) => `JM${a.id}`).join(", ")}`);
 
     // 4. 发送 + 记录
     const sentCount = await dispatchAlbums(albums, targets, cfg.dedupe, cfg.historyDays);
@@ -236,17 +262,12 @@ async function runManual(source: JmDailySource, limit: number): Promise<number> 
       return 0;
     }
 
-    const ids = await fetchDailyAlbumIds(source, limit);
-    if (ids.length === 0) {
-      pluginApi.logger.warn("榜单为空，未发送任何内容");
-      return 0;
-    }
-
-    const albums = filterExcluded(await collectAlbums(ids), cfg.excludeTags);
+    const albums = await collectTopAlbums(source, limit, false, cfg.excludeTags);
     if (albums.length === 0) {
-      pluginApi.logger.warn("详情获取全部失败或全部被 excludeTags 过滤，未发送任何内容");
+      pluginApi.logger.warn("没有获取到可发送的本子（榜单为空 / 全部被 excludeTags 过滤）");
       return 0;
     }
+    pluginApi.logger.info(`已获取 ${albums.length} 本: ${albums.map((a) => `JM${a.id}`).join(", ")}`);
 
     const sentCount = await dispatchAlbums(albums, targets, cfg.dedupe, cfg.historyDays);
 
@@ -293,9 +314,9 @@ function registerDiscordCommandHandler(): void {
 export default {
   manifest: {
     name: "jm-daily",
-    version: "1.3.0",
+    version: "1.3.1",
     description:
-      "定时/手动搬运 JMComic 榜单本子到 Discord/Telegram/QQ(OneBot11)，支持 /jm 命令与 excludeTags 过滤（只发送到配置的 targets）",
+      "定时/手动搬运 JMComic 榜单本子到 Discord/Telegram/QQ(OneBot11)，支持 /jm 命令、excludeTags 过滤与数量补足（只发送到配置的 targets）",
     author: "shit-bot",
   },
   init: (pluginApi) => {
