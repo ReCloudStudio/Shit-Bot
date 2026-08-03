@@ -8,7 +8,7 @@
         "discord.js": "^14.26.4",
         "dotenv": "^17.4.2",
         "https-proxy-agent": "^9.1.0",
-        "jmcomic-crawler": "^2.7.4",
+        "jmcomic-crawler": "^2.7.5",
         "node-cron": "^4.5.0",
         "node-emoji": "^2.2.0",
         "rss-parser": "^3.13.0",
@@ -35,7 +35,7 @@
     },
   },
   "patchedDependencies": {
-    "jmcomic-crawler@2.7.4": "patches/jmcomic-crawler@2.7.4.patch",
+    "jmcomic-crawler@2.7.5": "patches/jmcomic-crawler@2.7.5.patch",
   },
   "packages": {
     "@algolia/abtesting": ["@algolia/abtesting@1.21.1", "", { "dependencies": { "@algolia/client-common": "5.55.1", "@algolia/requester-browser-xhr": "5.55.1", "@algolia/requester-fetch": "5.55.1", "@algolia/requester-node-http": "5.55.1" } }, "sha512-Wia5/mNTfiU0PIUN25UMfAGGdASkkwuCS9nBAdmhqrNPY/ff7U/6MgBVdwFDPsa3sA1msutPtO50gvOzx6MOXA=="],
@@ -560,7 +560,7 @@
 
     "isarray": ["isarray@1.0.0", "", {}, "sha512-VLghIWNM6ELQzo7zwmcg0NmTVyWKYjvIeM83yjp0wRDTmUnrM678fQbcKBo6n2CJEF0szoG//ytg+TKla89ALQ=="],
 
-    "jmcomic-crawler": ["jmcomic-crawler@2.7.4", "", { "dependencies": { "js-yaml": "^4.1.0", "jszip": "^3.10.1", "sharp": "^0.33.5" }, "peerDependencies": { "typescript": "^5" }, "bin": { "jmcomic": "dist/cli.js" } }, "sha512-MXf8z4QVwq4c6dgTZm1RW8P+IeDbC/T31FJRLH2uX8n7HeM2FlLUO5Bdk5USQybsigwOAYcH6UlwII969c4dSA=="],
+    "jmcomic-crawler": ["jmcomic-crawler@2.7.5", "", { "dependencies": { "js-yaml": "^4.1.0", "jszip": "^3.10.1", "sharp": "^0.33.5" }, "peerDependencies": { "typescript": "^5" }, "bin": { "jmcomic": "dist/cli.js" } }, "sha512-7tB92eoEyvX8EJ8dxLEK8rZBNvW5tsKRpEDtVxniTQ9OuRVbxkobQIp6FeWA/xXQ0v7p5Z4t3wLjmxzkWMp/ng=="],
 
     "js-yaml": ["js-yaml@4.3.1", "", { "dependencies": { "argparse": "^2.0.1" }, "bin": { "js-yaml": "bin/js-yaml.js" } }, "sha512-CY6crGq313MX8GkwvB7tzgp99vjQxY1++5y10/BKN/GUfHqWaOGQMNZkBvqSzsZKWk/ijwHlWzzkLulsGHhjWQ=="],
 

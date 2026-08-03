@@ -19,6 +19,9 @@ plugins:
       header: "📚 JM 今日推荐"
       dedupe: true
       historyDays: 30
+      excludeTags:
+        - "全彩"
+        - "无修正"
       targets:
         telegram: ["-1001234567890"]
         discord: ["1234567890"]
@@ -38,19 +41,30 @@ plugins:
 | `header` | `string` | `📚 JM 今日推荐` | 发送时的标题头 |
 | `dedupe` | `boolean` | `true` | 是否去重（同一本子只发送一次） |
 | `historyDays` | `number` | `30` | 去重记录保留天数 |
+| `excludeTags` | `string[]` | `[]` | 需要排除的标签：本子标签命中任意一个即跳过发送 |
 | `targets` | `object` | — | 发送目标，见下方 |
 
 ### 数据源（source）
 
 | 值 | 说明 |
 |------|------|
-| `daily` | 今日榜（默认，移动端 API `mv_t`） |
+| `daily` | 今日榜（默认，v2.7.5+ 专用 `dayRanking` API） |
 | `week` | 周榜 |
 | `month` | 月榜 |
 | `popular` | 总人气 |
 | `latest` | 最新上架 |
 
 `daily` 偶发返回空，插件会自动回退 `week → month → popular`。
+
+### excludeTags - 排除标签
+
+```yaml
+excludeTags:
+  - "全彩"
+  - "无修正"
+```
+
+配置后，本子详情标签命中任意一个即**跳过发送**（定时任务和 `/jm` 命令都会过滤）。可用于过滤不想要的内容（如特定题材、汉化组标签等）。
 
 ### targets - 发送目标
 

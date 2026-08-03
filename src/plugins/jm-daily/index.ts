@@ -127,6 +127,12 @@ async function collectAlbums(ids: string[]): Promise<JmAlbumSummary[]> {
   return albums;
 }
 
+/** 过滤掉命中 excludeTags 的本子 */
+function filterExcluded(albums: JmAlbumSummary[], excludeTags: string[]): JmAlbumSummary[] {
+  if (excludeTags.length === 0) return albums;
+  return albums.filter((album) => !album.tags.some((tag) => excludeTags.includes(tag)));
+}
+
 /** 发送并记录去重，返回成功发送数 */
 async function dispatchAlbums(
   albums: JmAlbumSummary[],
@@ -188,10 +194,10 @@ async function runDaily(): Promise<void> {
       return;
     }
 
-    // 3. 抓取详情
-    const albums = await collectAlbums(freshIds);
+    // 3. 抓取详情 + 按 excludeTags 过滤
+    const albums = filterExcluded(await collectAlbums(freshIds), cfg.excludeTags);
     if (albums.length === 0) {
-      pluginApi.logger.warn("详情获取全部失败，跳过发送");
+      pluginApi.logger.warn("详情获取全部失败或全部被 excludeTags 过滤，跳过发送");
       return;
     }
 
@@ -236,9 +242,9 @@ async function runManual(source: JmDailySource, limit: number): Promise<number> 
       return 0;
     }
 
-    const albums = await collectAlbums(ids);
+    const albums = filterExcluded(await collectAlbums(ids), cfg.excludeTags);
     if (albums.length === 0) {
-      pluginApi.logger.warn("详情获取全部失败，未发送任何内容");
+      pluginApi.logger.warn("详情获取全部失败或全部被 excludeTags 过滤，未发送任何内容");
       return 0;
     }
 
@@ -287,9 +293,9 @@ function registerDiscordCommandHandler(): void {
 export default {
   manifest: {
     name: "jm-daily",
-    version: "1.2.0",
+    version: "1.3.0",
     description:
-      "定时/手动搬运 JMComic 榜单本子到 Discord/Telegram/QQ(OneBot11)，支持 /jm 命令（只发送到配置的 targets）",
+      "定时/手动搬运 JMComic 榜单本子到 Discord/Telegram/QQ(OneBot11)，支持 /jm 命令与 excludeTags 过滤（只发送到配置的 targets）",
     author: "shit-bot",
   },
   init: (pluginApi) => {
@@ -371,6 +377,7 @@ export default {
     header: { type: "string", default: "📚 JM 今日推荐" },
     dedupe: { type: "boolean", default: true },
     historyDays: { type: "number", default: 30 },
+    excludeTags: { type: "array" },
     targets: { type: "object" },
   },
 } satisfies PluginDefinition;

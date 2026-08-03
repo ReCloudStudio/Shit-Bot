@@ -23,16 +23,6 @@ export interface JmAlbumSummary {
   url: string;
 }
 
-/** 数据源 → categories/filter 参数（time 非 all 时 orderBy 会拼接上 time 后缀） */
-const SOURCE_PARAMS: Record<JmDailySource, { time: string; orderBy: string }> = {
-  // time=t + orderBy=mv → o=mv_t（今日榜）
-  daily: { time: JmMagicConstants.TIME_TODAY, orderBy: JmMagicConstants.ORDER_BY_VIEW },
-  week: { time: JmMagicConstants.TIME_ALL, orderBy: JmMagicConstants.ORDER_WEEK_RANKING },
-  month: { time: JmMagicConstants.TIME_ALL, orderBy: JmMagicConstants.ORDER_MONTH_RANKING },
-  popular: { time: JmMagicConstants.TIME_ALL, orderBy: JmMagicConstants.ORDER_BY_VIEW },
-  latest: { time: JmMagicConstants.TIME_ALL, orderBy: JmMagicConstants.ORDER_BY_LATEST },
-};
-
 /** 数据源回退链：今日榜偶发为空时依次回退到周榜/月榜/总人气 */
 const SOURCE_CHAIN: Record<JmDailySource, JmDailySource[]> = {
   daily: ["daily", "week", "month", "popular"],
@@ -68,23 +58,55 @@ async function getClient(): Promise<JmApiClient> {
 export async function fetchDailyAlbumIds(source: JmDailySource, limit: number): Promise<string[]> {
   const client = await getClient();
   for (const s of SOURCE_CHAIN[source]) {
-    const { time, orderBy } = SOURCE_PARAMS[s];
-    const page = await client.categoriesFilter(1, time, JmMagicConstants.CATEGORY_ALL, orderBy);
-    const content = (page as unknown as { content: [string, Record<string, any>][] }).content ?? [];
-
-    const ids: string[] = [];
-    const seen = new Set<string>();
-    for (const [id] of content) {
-      const key = String(id);
-      if (!seen.has(key)) {
-        seen.add(key);
-        ids.push(key);
-      }
-      if (ids.length >= limit) break;
-    }
+    const ids = await fetchIdsForSource(s, limit, client);
     if (ids.length > 0) return ids;
   }
   return [];
+}
+
+/** 拉取单个来源的榜单 id 列表（日/周/月榜走专用 API，人气/最新走 categoriesFilter） */
+async function fetchIdsForSource(source: JmDailySource, limit: number, client: JmApiClient): Promise<string[]> {
+  let page: unknown;
+  switch (source) {
+    case "daily":
+      page = await client.dayRanking(1);
+      break;
+    case "week":
+      page = await client.weekRanking(1);
+      break;
+    case "month":
+      page = await client.monthRanking(1);
+      break;
+    case "popular":
+      page = await client.categoriesFilter(
+        1,
+        JmMagicConstants.TIME_ALL,
+        JmMagicConstants.CATEGORY_ALL,
+        JmMagicConstants.ORDER_BY_VIEW,
+      );
+      break;
+    case "latest":
+      page = await client.categoriesFilter(
+        1,
+        JmMagicConstants.TIME_ALL,
+        JmMagicConstants.CATEGORY_ALL,
+        JmMagicConstants.ORDER_BY_LATEST,
+      );
+      break;
+  }
+  const content = (page as unknown as { content: [string, Record<string, any>][] }).content ?? [];
+
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const [id] of content) {
+    const key = String(id);
+    if (!seen.has(key)) {
+      seen.add(key);
+      ids.push(key);
+    }
+    if (ids.length >= limit) break;
+  }
+  return ids;
 }
 
 /** 获取本子详情（走 /album 原始 API，规避实体解析 bug） */

@@ -36,6 +36,8 @@ export interface JmDailyOptions {
   dedupe: boolean;
   /** 去重记录保留天数 */
   historyDays: number;
+  /** 需要排除的标签：本子标签命中任意一个即跳过发送 */
+  excludeTags: string[];
   /** 显式指定发送目标；不配置时自动使用 groups 配置的频道 */
   targets?: JmDailyTargets;
 }
@@ -56,6 +58,7 @@ const defaults: JmDailyOptions = {
   header: "📚 JM 今日推荐",
   dedupe: true,
   historyDays: 30,
+  excludeTags: [],
 };
 
 let cached: JmDailyOptions | null = null;
@@ -82,6 +85,11 @@ export function getJmDailyConfig(): JmDailyOptions {
     header: (raw.header as string) || defaults.header,
     dedupe: (raw.dedupe as boolean) ?? defaults.dedupe,
     historyDays: clampInt(raw.historyDays, defaults.historyDays, 1, 3650),
+    excludeTags: Array.isArray(raw.excludeTags)
+      ? (raw.excludeTags as string[])
+          .map((t) => String(t).trim())
+          .filter(Boolean)
+      : [],
     targets: {
       telegram: Array.isArray(rawTargets.telegram) ? (rawTargets.telegram as string[]).map(String) : undefined,
       discord: Array.isArray(rawTargets.discord) ? (rawTargets.discord as string[]).map(String) : undefined,

@@ -107,6 +107,10 @@ plugins:
       dedupe: true
       # 去重记录保留天数
       historyDays: 30
+      # 需要排除的标签：本子标签命中任意一个即跳过发送
+      excludeTags:
+        - "全彩"
+        - "无修正"
       # 发送目标：必须显式配置才会发送（不回退到 groups 的频道）
       # 不配置 targets 时，定时任务和 /jm 命令都不会发送任何内容
       targets:
