@@ -112,21 +112,6 @@ function cleanupHistory(historyDays: number): void {
   }
 }
 
-/** 逐本抓取详情（串行，避免触发禁漫限流） */
-async function collectAlbums(ids: string[]): Promise<JmAlbumSummary[]> {
-  const pluginApi = api;
-  const albums: JmAlbumSummary[] = [];
-  for (const id of ids) {
-    try {
-      const summary = await fetchAlbumSummary(id);
-      if (summary) albums.push(summary);
-    } catch (err) {
-      pluginApi?.logger.warn(`获取 JM${id} 详情失败: ${(err as Error)?.message}`);
-    }
-  }
-  return albums;
-}
-
 /** 过滤掉命中 excludeTags 的本子 */
 function filterExcluded(albums: JmAlbumSummary[], excludeTags: string[]): JmAlbumSummary[] {
   if (excludeTags.length === 0) return albums;
@@ -135,7 +120,8 @@ function filterExcluded(albums: JmAlbumSummary[], excludeTags: string[]): JmAlbu
 
 /**
  * 拉取并收集本子详情，直到攒够 limit 本。
- * 被去重/详情失败/excludeTags 排除的本子会跳过，并继续往后拉取补足数量。
+ * 被去重/详情失败/excludeTags 排除的本子会跳过，并继续往后拉取补足数量；
+ * 详情逐个抓取，凑满 limit 立即停止，避免不必要的串行请求。
  */
 async function collectTopAlbums(
   source: JmDailySource,
@@ -143,31 +129,40 @@ async function collectTopAlbums(
   dedupe: boolean,
   excludeTags: string[],
 ): Promise<JmAlbumSummary[]> {
+  const pluginApi = api;
   const albums: JmAlbumSummary[] = [];
   const fetched = new Set<string>();
   let windowSize = limit;
-  let guard = 0;
 
-  while (albums.length < limit && guard < 10) {
-    guard++;
+  for (let round = 1; round <= 10 && albums.length < limit; round++) {
     const ids = await fetchDailyAlbumIds(source, windowSize);
     if (ids.length === 0) break;
 
     const freshIds = ids.filter((id) => {
       if (fetched.has(id)) return false;
       fetched.add(id);
-      return !dedupe || !isAlreadySent(id);
+      return true;
     });
     if (freshIds.length === 0) break;
 
-    const summaries = await collectAlbums(freshIds);
-    for (const album of summaries) {
-      if (!filterExcluded([album], excludeTags).length) continue;
-      albums.push(album);
+    pluginApi?.logger.info(
+      `第 ${round} 批候选 ${freshIds.length} 本（窗口 ${windowSize}），当前已收集 ${albums.length}/${limit}`,
+    );
+
+    for (const id of freshIds) {
       if (albums.length >= limit) break;
+      if (dedupe && isAlreadySent(id)) continue;
+      try {
+        const summary = await fetchAlbumSummary(id);
+        if (summary && filterExcluded([summary], excludeTags).length) {
+          albums.push(summary);
+        }
+      } catch (err) {
+        pluginApi?.logger.warn(`获取 JM${id} 详情失败: ${(err as Error)?.message}`);
+      }
     }
 
-    windowSize = Math.min(windowSize + limit, 500);
+    windowSize = Math.min(windowSize + limit, 100);
   }
 
   return albums;

@@ -54,13 +54,16 @@ async function getClient(): Promise<JmApiClient> {
   return clientPromise;
 }
 
+/** 单个来源最多翻页数，防止分页异常时死循环 */
+const MAX_RANKING_PAGES = 5;
+
 /** 获取指定来源的榜单本子 id 列表（按榜单顺序跨页拉取，已过滤掉重复 id；主源为空时自动回退） */
 export async function fetchDailyAlbumIds(source: JmDailySource, limit: number): Promise<string[]> {
   const client = await getClient();
   for (const s of SOURCE_CHAIN[source]) {
     const ids: string[] = [];
     const seen = new Set<string>();
-    for (let page = 1; ids.length < limit; page++) {
+    for (let page = 1; ids.length < limit && page <= MAX_RANKING_PAGES; page++) {
       const pageIds = await fetchIdsPage(s, page, client);
       if (pageIds.length === 0) break;
       for (const id of pageIds) {
