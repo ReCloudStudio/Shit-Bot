@@ -24,6 +24,7 @@ export default defineConfig({
         items: [
           { text: "概述", link: "/guide/plugins" },
           { text: "AI Chat", link: "/plugins/ai-chat" },
+          { text: "JM 每日推荐", link: "/plugins/jm-daily" },
           { text: "开发插件", link: "/guide/plugin-dev" },
         ],
       },
