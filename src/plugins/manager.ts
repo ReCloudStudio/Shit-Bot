@@ -1,17 +1,10 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import { execSync } from 'child_process';
-import { logger } from '@/logger';
-import { getConfig } from '@/config';
-import { getDatabase } from '@/storage';
-import {
-  PluginDefinition,
-  PluginConfigEntry,
-  LoadedPlugin,
-  PluginHooks,
-  PluginAPI,
-  PluginLogger,
-} from './types';
+import * as fs from "fs";
+import * as path from "path";
+import { execSync } from "child_process";
+import { logger } from "@/logger";
+import { getConfig } from "@/config";
+import { getDatabase } from "@/storage";
+import { PluginDefinition, PluginConfigEntry, LoadedPlugin, PluginHooks, PluginAPI, PluginLogger } from "./types";
 
 const plugins: Map<string, LoadedPlugin> = new Map();
 const cronJobs: Array<{ expression: string; handler: () => void | Promise<void> }> = [];
@@ -39,7 +32,7 @@ function createLogger(name: string): PluginLogger {
 
 function getPluginConfig(name: string): PluginConfigEntry | undefined {
   const cfg = getConfig();
-  return (cfg.plugins || []).find(p => p.name === name);
+  return (cfg.plugins || []).find((p) => p.name === name);
 }
 
 export function getPluginAPI(name: string): PluginAPI {
@@ -63,18 +56,18 @@ function resolveExternalDirs(): string[] {
   const cfg = getConfig();
   const d = cfg.pluginsDir;
   if (!d) return [];
-  if (typeof d === 'string') return [d];
+  if (typeof d === "string") return [d];
   if (Array.isArray(d)) return d;
   return [];
 }
 
 async function loadPlugin(dirPath: string): Promise<LoadedPlugin | null> {
   const name = path.basename(dirPath);
-  if (name.startsWith('.')) return null;
+  if (name.startsWith(".")) return null;
 
-  const indexJs = path.join(dirPath, 'index.js');
-  const indexTs = path.join(dirPath, 'index.ts');
-  const entryPath = fs.existsSync(indexJs) ? indexJs : (fs.existsSync(indexTs) ? indexTs : null);
+  const indexJs = path.join(dirPath, "index.js");
+  const indexTs = path.join(dirPath, "index.ts");
+  const entryPath = fs.existsSync(indexJs) ? indexJs : fs.existsSync(indexTs) ? indexTs : null;
 
   if (!entryPath) return null;
 
@@ -106,7 +99,7 @@ async function scanDir(scanPath: string): Promise<LoadedPlugin[]> {
 
   for (const entry of fs.readdirSync(scanPath, { withFileTypes: true })) {
     if (entry.isDirectory()) {
-      if (entry.name === '__pycache__' || entry.name.startsWith('.')) continue;
+      if (entry.name === "__pycache__" || entry.name.startsWith(".")) continue;
       const plugin = await loadPlugin(path.join(scanPath, entry.name));
       if (plugin) results.push(plugin);
     }
@@ -116,7 +109,7 @@ async function scanDir(scanPath: string): Promise<LoadedPlugin[]> {
 }
 
 function ensureCacheDir(): string {
-  const cacheDir = path.join(process.cwd(), 'data', 'plugins-cache');
+  const cacheDir = path.join(process.cwd(), "data", "plugins-cache");
   fs.mkdirSync(cacheDir, { recursive: true });
   return cacheDir;
 }
@@ -138,17 +131,17 @@ async function syncGithubPlugin(entry: PluginConfigEntry): Promise<string | null
 
   const cacheDir = ensureCacheDir();
   const targetDir = path.join(cacheDir, entry.name);
-  const ref = entry.ref || 'main';
+  const ref = entry.ref || "main";
   const cloneUrl = `https://github.com/${parsed.owner}/${parsed.repo}.git`;
 
   try {
     if (fs.existsSync(targetDir)) {
       logger.info("Plugin", `更新 GitHub 插件 ${entry.name} (${cloneUrl}#${ref})...`);
-      execSync(`git -C ${targetDir} fetch origin ${ref} --depth 1`, { stdio: 'pipe' });
-      execSync(`git -C ${targetDir} reset --hard FETCH_HEAD`, { stdio: 'pipe' });
+      execSync(`git -C ${targetDir} fetch origin ${ref} --depth 1`, { stdio: "pipe" });
+      execSync(`git -C ${targetDir} reset --hard FETCH_HEAD`, { stdio: "pipe" });
     } else {
       logger.info("Plugin", `克隆 GitHub 插件 ${entry.name} (${cloneUrl}#${ref})...`);
-      execSync(`git clone ${cloneUrl} ${targetDir} --branch ${ref} --depth 1`, { stdio: 'pipe' });
+      execSync(`git clone ${cloneUrl} ${targetDir} --branch ${ref} --depth 1`, { stdio: "pipe" });
     }
     return targetDir;
   } catch (err) {
@@ -180,7 +173,7 @@ async function discoverPlugins(): Promise<LoadedPlugin[]> {
   for (const extDir of resolveExternalDirs()) {
     const external = await scanDir(extDir);
     for (const plugin of external) {
-      if (!results.some(p => p.manifest.name === plugin.manifest.name)) {
+      if (!results.some((p) => p.manifest.name === plugin.manifest.name)) {
         results.push(plugin);
       }
     }
@@ -234,7 +227,11 @@ export function getPluginCronJobs(): Array<{ expression: string; handler: () => 
   return [...cronJobs];
 }
 
-async function callHook<T>(hookName: string, fns: Array<(...args: any[]) => T | Promise<T>>, ...args: any[]): Promise<void> {
+async function callHook<T>(
+  hookName: string,
+  fns: Array<(...args: any[]) => T | Promise<T>>,
+  ...args: any[]
+): Promise<void> {
   for (const fn of fns) {
     try {
       await fn(...args);
@@ -324,6 +321,21 @@ export async function executeTelegramMessageHook(ctx: any): Promise<boolean> {
   return claimed;
 }
 
+export async function executeOneBotMessageHook(message: any): Promise<boolean> {
+  let claimed = false;
+  for (const plugin of plugins.values()) {
+    const hook = plugin.hooks.onOneBotMessage;
+    if (!hook) continue;
+    try {
+      const result = await hook(message);
+      if (result === true) claimed = true;
+    } catch (err) {
+      logger.error("Plugin", `插件 ${plugin.manifest.name} onOneBotMessage 失败:`, err);
+    }
+  }
+  return claimed;
+}
+
 export async function executeBeforeApprovalHook(tweet: any, group: any): Promise<any> {
   let current = tweet;
   for (const plugin of plugins.values()) {
@@ -358,9 +370,9 @@ export async function getPluginDiscordCommands(): Promise<any[]> {
 }
 
 export async function shutdownPlugins(): Promise<void> {
-  await executeHook('onBeforeShutdown');
+  await executeHook("onBeforeShutdown");
   plugins.clear();
   cronJobs.length = 0;
   initialized = false;
-  logger.info("Plugin", '所有插件已关闭');
+  logger.info("Plugin", "所有插件已关闭");
 }

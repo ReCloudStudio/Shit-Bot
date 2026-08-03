@@ -1,11 +1,11 @@
-import WebSocket from 'ws';
-import { ProcessedTweet, OneBotConfig } from '@/types';
-import { getConfig } from '@/config';
-import { formatContentForPlatform } from '@/filters';
-import { renderTweetImage } from '@/renderer';
-import { storeSentOneBotMessage } from '@/storage';
-import { getCachedImage } from '@/storage';
-import { logger } from '@/logger';
+import WebSocket from "ws";
+import { ProcessedTweet, OneBotConfig } from "@/types";
+import { getConfig } from "@/config";
+import { formatContentForPlatform } from "@/filters";
+import { renderTweetImage } from "@/renderer";
+import { storeSentOneBotMessage } from "@/storage";
+import { getCachedImage } from "@/storage";
+import { logger } from "@/logger";
 
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -39,12 +39,12 @@ async function sendAction(action: string, params: Record<string, any> = {}): Pro
       ws.send(JSON.stringify({ action, params, echo }));
     } else {
       pendingActions.delete(echo);
-      reject(new Error('WebSocket 未连接'));
+      reject(new Error("WebSocket 未连接"));
     }
     setTimeout(() => {
       if (pendingActions.has(echo)) {
         pendingActions.delete(echo);
-        reject(new Error('请求超时'));
+        reject(new Error("请求超时"));
       }
     }, 15000);
   });
@@ -63,18 +63,18 @@ export async function sendToOneBot(
   let imageBuffer: Buffer | null = preRenderedImage || null;
 
   if (sendImage && !imageBuffer) {
-    imageBuffer = getCachedImage(tweet.id) || await renderTweetImage(tweet);
+    imageBuffer = getCachedImage(tweet.id) || (await renderTweetImage(tweet));
   }
 
   try {
     if (imageBuffer) {
-      const base64 = imageBuffer.toString('base64');
+      const base64 = imageBuffer.toString("base64");
       const imageSeg = `[CQ:image,file=base64://${base64}]`;
-      const text = formatContentForPlatform(tweet.content, 'onebot');
-      const footer = approvalId ? `\n\nID: ${approvalId}` : '';
+      const text = formatContentForPlatform(tweet.content, "onebot");
+      const footer = approvalId ? `\n\nID: ${approvalId}` : "";
       const msg = `${imageSeg}\n${text}${footer}`;
 
-      const result = await sendAction('send_group_msg', {
+      const result = await sendAction("send_group_msg", {
         group_id: groupId,
         message: msg,
       });
@@ -83,12 +83,12 @@ export async function sendToOneBot(
       }
       return result?.message_id || null;
     } else {
-      const text = formatContentForPlatform(tweet.content, 'onebot');
+      const text = formatContentForPlatform(tweet.content, "onebot");
       const link = `\n\n🔗 ${tweet.url}`;
-      const footer = approvalId ? `\n\nID: ${approvalId}` : '';
+      const footer = approvalId ? `\n\nID: ${approvalId}` : "";
       const msg = `${text}${link}${footer}`;
 
-      const result = await sendAction('send_group_msg', {
+      const result = await sendAction("send_group_msg", {
         group_id: groupId,
         message: msg,
       });
@@ -105,7 +105,7 @@ export async function sendToOneBot(
 
 export async function sendTextToOneBot(text: string, groupId: number): Promise<number | null> {
   try {
-    const result = await sendAction('send_group_msg', {
+    const result = await sendAction("send_group_msg", {
       group_id: groupId,
       message: text,
     });
@@ -116,9 +116,28 @@ export async function sendTextToOneBot(text: string, groupId: number): Promise<n
   }
 }
 
+export async function sendImageToOneBot(
+  groupId: number,
+  imageBase64: string,
+  caption: string = "",
+): Promise<number | null> {
+  try {
+    const imageSeg = `[CQ:image,file=base64://${imageBase64}]`;
+    const message = caption ? `${imageSeg}\n${caption}` : imageSeg;
+    const result = await sendAction("send_group_msg", {
+      group_id: groupId,
+      message,
+    });
+    return result?.message_id || null;
+  } catch (error) {
+    logger.error("OneBot", `发送图片到群组 ${groupId} 失败:`, error);
+    return null;
+  }
+}
+
 export async function deleteOneBotMessage(messageId: number, groupId: number): Promise<boolean> {
   try {
-    await sendAction('delete_msg', { message_id: messageId });
+    await sendAction("delete_msg", { message_id: messageId });
     return true;
   } catch (error) {
     logger.error("OneBot", `撤回消息 ${messageId} 失败:`, error);
@@ -130,9 +149,9 @@ function connect(): void {
   const config = getConfig();
   if (!config.onebot.enabled || !config.onebot.url) return;
 
-  let wsUrl = config.onebot.url.replace(/^http/, 'ws');
+  let wsUrl = config.onebot.url.replace(/^http/, "ws");
   if (config.onebot.token) {
-    const sep = wsUrl.includes('?') ? '&' : '?';
+    const sep = wsUrl.includes("?") ? "&" : "?";
     wsUrl = `${wsUrl}${sep}access_token=${encodeURIComponent(config.onebot.token)}`;
   }
   logger.info("OneBot", `正在连接 ${wsUrl}`);
@@ -143,9 +162,9 @@ function connect(): void {
   }
   ws = new WebSocket(wsUrl, wsOptions);
 
-  ws.on('open', () => {
+  ws.on("open", () => {
     connected = true;
-    logger.info("OneBot", 'WebSocket 已连接');
+    logger.info("OneBot", "WebSocket 已连接");
 
     heartbeatTimer = setInterval(() => {
       if (ws?.readyState === WebSocket.OPEN) {
@@ -154,7 +173,7 @@ function connect(): void {
     }, 30000);
   });
 
-  ws.on('message', (data) => {
+  ws.on("message", (data) => {
     try {
       const event = JSON.parse(data.toString());
       // 处理 API 响应（OneBot 11 通过 echo 匹配请求）
@@ -169,7 +188,7 @@ function connect(): void {
         return;
       }
       // 处理群消息
-      if (event.message_type === 'group' && event.raw_message) {
+      if (event.message_type === "group" && event.raw_message) {
         const msg: OneBotMessage = {
           message_id: event.message_id,
           group_id: event.group_id,
@@ -183,20 +202,20 @@ function connect(): void {
     } catch {}
   });
 
-  ws.on('close', () => {
+  ws.on("close", () => {
     connected = false;
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     // 清理所有待处理的请求
     for (const [, { reject }] of pendingActions) {
-      reject(new Error('WebSocket 已断开'));
+      reject(new Error("WebSocket 已断开"));
     }
     pendingActions.clear();
-    logger.info("OneBot", 'WebSocket 已断开');
+    logger.info("OneBot", "WebSocket 已断开");
     scheduleReconnect();
   });
 
-  ws.on('error', (err) => {
-    logger.error("OneBot", 'WebSocket 错误:', err.message);
+  ws.on("error", (err) => {
+    logger.error("OneBot", "WebSocket 错误:", err.message);
   });
 }
 
@@ -212,12 +231,12 @@ function scheduleReconnect(): void {
 export async function initOneBot(): Promise<boolean> {
   const config = getConfig();
   if (!config.onebot.enabled) {
-    logger.info("OneBot", '已在配置中禁用');
+    logger.info("OneBot", "已在配置中禁用");
     return false;
   }
 
   if (!config.onebot.url) {
-    logger.error("OneBot", '未配置 URL');
+    logger.error("OneBot", "未配置 URL");
     return false;
   }
 
@@ -251,5 +270,5 @@ export async function shutdownOneBot(): Promise<void> {
     ws = null;
   }
   connected = false;
-  logger.info("OneBot", '已断开连接');
+  logger.info("OneBot", "已断开连接");
 }

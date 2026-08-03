@@ -86,6 +86,18 @@ OneBot11 使用文本命令进行审批：
 - When editing config via API, masked secrets (`••••••••`) are treated as "no change" — the existing value is preserved.
 - Web UI: `fetchAllTweets` is defined in both `src/twitter/client.ts` and `src/rss/fetcher.ts`. The one used is from `twitter/client.ts` (imported in `index.ts`).
 
+## jm-daily 插件 (JMComic 每日推荐)
+
+`src/plugins/jm-daily/` 定时从 JMComic 拉取榜单并发送到 Discord/Telegram/OneBot11。
+
+- 依赖 `jmcomic-crawler`（npm，ESM-only）。项目编译为 CJS，因此该包通过 `patchedDependencies`（`patches/jmcomic-crawler@2.7.4.patch`）在 exports 中补上了 `require` 条件，`bun install` 时自动应用。**不要删除该 patch**，否则 `require("jmcomic-crawler")` 会报 `ERR_PACKAGE_PATH_NOT_EXPORTED`。
+- `src/plugins/jm-daily/jm.ts` 使用 `JmApiClient.reqApi("/album?id=")` 拿原始数据而非 `getAlbumDetail()`，因为上游包的 `JmApiAdaptTool.parseEntity` 用单对象调用位置参数构造函数，实体字段会错乱（`name` 等全为 undefined）。
+- 榜单来源：`categoriesFilter`，今日榜为 `time=t + orderBy=mv`（API 拼出 `o=mv_t`），`mv_t` 偶发返回空，插件会自动回退 `week → month → popular`。
+- 去重：`data/bot.db` 的 `jm_daily_sent` 表记录已发送的 album id，同一本子只发送一次（`historyDays` 默认 30 天清理）。
+- 目标解析：只发送 `options.targets` 里显式配置的目标（`telegram`/`discord`/`onebot`），**不回退到 `groups` 的频道**；未配置 `targets` 时定时任务和 `/jm` 命令都不发送。
+- 手动命令：`/jm <source> [数量]`（Telegram/OneBot 文本命令，Discord 为 `/jm` 斜杠命令），`source` 支持 `daily`/`week`/`month`/`monthly`/`popular`/`latest` 及中文别名（如 `/jm 月榜 10`）。手动命令不过滤去重（按请求发 top N），只发送到配置的 targets，并写入去重记录。Telegram 文本消息钩子（`onTelegramMessage`）在 `src/index.ts` 中接线；OneBot 消息钩子（`onOneBotMessage`）同样在 `src/index.ts` 接线（审批命令之前）；Discord 斜杠命令由插件自注册 `interactionCreate` 处理（同 ai-chat 模式），纯文本 `/jm` 依赖 ai-chat 的 `messageCreate` 监听器转发 `onDiscordMessage`。
+- 运行时必须是 **Bun**（`bun run dev` / `bun run dist/index.js`）：项目依赖 `bun:sqlite`，`node dist/index.js` 无法运行。AGENTS.md 中 dev 脚本描述已过时，见 `package.json`。
+
 ## Import path convention
 
 All internal imports use the `@/` alias (`@/` maps to `src/`). This avoids fragile relative paths like `../../../foo`:

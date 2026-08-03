@@ -9,12 +9,13 @@ export {
   executeBeforeApprovalHook,
   executeDiscordMessageHook,
   executeTelegramMessageHook,
+  executeOneBotMessageHook,
   setDiscordClientProvider,
   setTelegramBotProvider,
   getPluginDiscordCommands,
   shutdownPlugins,
   getPluginAPI,
-} from './manager';
+} from "./manager";
 
 export type {
   PluginManifest,
@@ -26,4 +27,4 @@ export type {
   LoadedPlugin,
   PollResult,
   SendResult,
-} from './types';
+} from "./types";

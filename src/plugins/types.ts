@@ -63,6 +63,7 @@ export interface PluginHooks {
   ) => void | Promise<void>;
   onDiscordMessage?: (message: any) => boolean | void | Promise<boolean | void>;
   onTelegramMessage?: (ctx: any) => boolean | void | Promise<boolean | void>;
+  onOneBotMessage?: (message: any) => boolean | void | Promise<boolean | void>;
   onDiscordCommands?: () => any[] | Promise<any[]>;
 }
 
