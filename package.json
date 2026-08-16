@@ -40,6 +40,7 @@
     "tsc-alias": "^1.8.17",
     "tsx": "^4.22.5",
     "typescript": "^6.0.3",
+    "entities": "^7.0.1",
     "vitepress": "^1.6.4",
     "wrangler": "^4.107.0"
   },
